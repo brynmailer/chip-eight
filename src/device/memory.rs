@@ -3,7 +3,7 @@ use std::{error::Error, fmt};
 const MEMORY_SIZE: usize = 0x1000; // 4kB
 
 #[derive(Debug)]
-enum MemoryError {
+pub enum MemoryError {
     OutOfBounds(u16),
 }
 
@@ -18,13 +18,13 @@ impl fmt::Display for MemoryError {
 impl Error for MemoryError {}
 
 pub struct Memory {
-    ram: [u8; MEMORY_SIZE],
+    buf: [u8; MEMORY_SIZE],
 }
 
 impl Memory {
     pub fn new() -> Self {
         Self {
-            ram: [0; MEMORY_SIZE],
+            buf: [0; MEMORY_SIZE],
         }
     }
 
@@ -33,11 +33,25 @@ impl Memory {
         data: u8,
         addr: u16,
     ) -> Result<(), MemoryError> {
-        if addr as usize > MEMORY_SIZE - 1 {
-            Err(MemoryError::OutOfBounds(addr))
-        } else {
-            self.ram[addr as usize] = data;
+        // This could be an issue. Not sure if this range should be
+        // inclusive or exclusive...
+        if (0x200..MEMORY_SIZE).contains(&(addr as usize)) {
+            self.buf[addr as usize] = data;
             Ok(())
+        } else {
+            Err(MemoryError::OutOfBounds(addr))
         }
+    }
+
+    pub fn write_buf(
+        &mut self,
+        data: &[u8],
+        addr: u16,
+    ) -> Result<(), MemoryError> {
+        for (index, data) in data.iter().enumerate() {
+            self.write(*data, addr + index as u16)?
+        }
+
+        Ok(())
     }
 }
