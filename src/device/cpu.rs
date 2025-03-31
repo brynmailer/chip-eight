@@ -3,16 +3,16 @@ pub struct CPU {
     stack: Vec<u16>,
 
     // Stack pointer
-    sp: u8,
+    sp: usize,
 
     // Program counter which points to the current instruction in memory.
-    pc: u16,
+    pc: usize,
 
     // 16 8-bit general purpose variable registers.
     v: [u8; 16],
 
     // Index register to point at locations in memory.
-    i: u16,
+    i: usize,
 
     // Delay timer which is decremented at a rate of 60 Hz until it reaches 0. Can
     // be set and read.

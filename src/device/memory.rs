@@ -1,16 +1,16 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, usize};
 
 const MEMORY_SIZE: usize = 0x1000; // 4kB
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum MemoryError {
-    OutOfBounds(u16),
+    OutOfBounds(usize),
 }
 
 impl fmt::Display for MemoryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MemoryError::OutOfBounds(addr) => write!(f, "attempt to write to memory failed: address {} out of bounds", addr),
+            MemoryError::OutOfBounds(addr) => write!(f, "attempt to access memory at position {} failed: address out of bounds", addr),
         }
     }
 }
@@ -28,28 +28,53 @@ impl Memory {
         }
     }
 
-    pub fn write(
+    fn is_in_bounds(&self, addr: usize) -> bool {
+        addr < self.buf.len()
+    }
+
+    pub fn read_byte(&self, addr: usize) -> Result<u8, MemoryError> {
+        if self.is_in_bounds(addr) {
+            Ok(self.buf[addr])
+        } else {
+            Err(MemoryError::OutOfBounds(addr))
+        }
+    }
+
+    // TODO: Rewrite to ensure error is returned with the correct addr
+    pub fn read_buf(
+        &self,
+        addr: usize,
+        len: usize,
+    ) -> Result<&[u8], MemoryError> {
+        if self.is_in_bounds(addr + len) {
+            Ok(&self.buf[addr..=len])
+        } else {
+            Err(MemoryError::OutOfBounds(addr))
+        }
+    }
+
+    pub fn write_byte(
         &mut self,
+        addr: usize,
         data: u8,
-        addr: u16,
     ) -> Result<(), MemoryError> {
-        // This could be an issue. Not sure if this range should be
-        // inclusive or exclusive...
-        if (0x200..MEMORY_SIZE).contains(&(addr as usize)) {
-            self.buf[addr as usize] = data;
+        if self.is_in_bounds(addr) {
+            self.buf[addr] = data;
             Ok(())
         } else {
             Err(MemoryError::OutOfBounds(addr))
         }
     }
 
+    // TODO: Rewrite to ensure that nothing is written before ensuring
+    // entire input data buffer falls within memory range
     pub fn write_buf(
         &mut self,
+        addr: usize,
         data: &[u8],
-        addr: u16,
     ) -> Result<(), MemoryError> {
         for (index, data) in data.iter().enumerate() {
-            self.write(*data, addr + index as u16)?
+            self.write_byte(addr + index, *data)?
         }
 
         Ok(())
