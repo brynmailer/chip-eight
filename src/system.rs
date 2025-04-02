@@ -23,12 +23,12 @@ const DEFAULT_FONT: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
 
-pub struct ChipEight {
+pub struct System {
     cpu: CPU,
     memory: Memory,
 }
 
-impl ChipEight {
+impl System {
     pub fn new() -> Self {
         Self {
             cpu: CPU::new(),
@@ -52,71 +52,72 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_new_chip8_initializes_correctly() {
-        let chip8 = ChipEight::new();
+    fn test_new_system_initializes_correctly() {
+        let system = System::new();
         // This is just testing the constructor works without panicking
         // Further tests could verify initial memory/CPU state if those were public
     }
 
     #[test]
     fn test_load_rom_successfully() {
-        let mut chip8 = ChipEight::new();
+        let mut system = System::new();
         let test_rom = vec![0xA2, 0xB4, 0xC6, 0xD8]; // Some arbitrary test bytes
         
-        let result = chip8.load(&test_rom);
+        let result = system.load(&test_rom);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_load_font_is_at_correct_location() {
-        let mut chip8 = ChipEight::new();
+        let mut system = System::new();
         let empty_rom = vec![];
         
-        chip8.load(&empty_rom).unwrap();
+        system.load(&empty_rom).unwrap();
         
-        for index in 0..DEFAULT_FONT.len() {
-            assert_eq!(chip8.memory.read_byte(0x050 + index), Ok(DEFAULT_FONT[index]));
+        for i in 0..DEFAULT_FONT.len() {
+            assert_eq!(system.memory.read_byte(0x050 + i), Ok(DEFAULT_FONT[i]));
         }
     }
 
     #[test]
     fn test_load_rom_is_at_correct_location() {
-        let mut chip8 = ChipEight::new();
+        let mut system = System::new();
         let test_rom = vec![0x12, 0x34, 0x56, 0x78];
         
-        chip8.load(&test_rom).unwrap();
+        system.load(&test_rom).unwrap();
         
-        for index in 0..test_rom.len() {
-            assert_eq!(chip8.memory.read_byte(0x200 + index), Ok(test_rom[index]));
+        for i in 0..test_rom.len() {
+            assert_eq!(system.memory.read_byte(0x200 + i), Ok(test_rom[i]));
         }
     }
 
     #[test]
     fn test_load_oversized_rom() {
-        let mut chip8 = ChipEight::new();
+        let mut system = System::new();
         // Create a ROM that's too large for memory
         let oversized_rom = vec![0xFF; 0x2000]; // Assuming 8KB is too large
         
-        let result = chip8.load(&oversized_rom);
-        // TODO: Check for specific error
-        assert!(result.is_err());
+        assert_eq!(
+            system.load(&oversized_rom),
+            Err(MemoryError::RangeOutOfBounds(0x200, oversized_rom.len()))
+        );
     }
 
     #[test]
     fn test_load_multiple_roms_sequentially() {
-        let mut chip8 = ChipEight::new();
+        let mut system = System::new();
         let first_rom = vec![0x11, 0x22];
         let second_rom = vec![0x33, 0x44];
         
         // Load first ROM
-        chip8.load(&first_rom).unwrap();
+        system.load(&first_rom).unwrap();
         
         // Load second ROM (should overwrite the first)
-        let result = chip8.load(&second_rom);
+        let result = system.load(&second_rom);
         assert!(result.is_ok());
         
-        for index in 0..second_rom.len() {
-            assert_eq!(chip8.memory.read_byte(0x200 + index), Ok(second_rom[index]));
+        for i in 0..second_rom.len() {
+            assert_eq!(system.memory.read_byte(0x200 + i), Ok(second_rom[i]));
         }
     }
 }

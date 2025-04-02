@@ -1,11 +1,11 @@
-mod device;
+mod system;
 
-use crate::device::ChipEight;
+use crate::system::System;
 
 const SPEED_IN_HZ: usize = 700;
 
 fn main() {
-    let device = ChipEight::new();
+    let system = System::new();
 
     // Load rom
     
