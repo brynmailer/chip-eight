@@ -1,8 +1,7 @@
+mod config;
 mod system;
 
-use crate::system::System;
-
-const SPEED_IN_HZ: usize = 700;
+use system::System;
 
 fn main() {
     let system = System::new();

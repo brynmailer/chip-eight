@@ -1,3 +1,5 @@
+use std::thread;
+
 pub struct CPU {
     // Stack containing 16-bit addressess used to call/return from functions and subroutines.
     stack: Vec<u16>,
@@ -16,11 +18,11 @@ pub struct CPU {
 
     // Delay timer which is decremented at a rate of 60 Hz until it reaches 0. Can
     // be set and read.
-    delay: u8,
+    delay: Timer,
 
     // Sound timer. Functions like the delay timer, but additionally makes a beeping
     // sound when the value is not 0.
-    sound: u8,
+    sound: Timer,
 }
 
 impl CPU {
@@ -33,8 +35,25 @@ impl CPU {
             pc: 0x200, 
             v: [0; 16],
             i: 0,
-            delay: 0,
-            sound: 0,
+            delay: Timer::new(),
+            sound: Timer::new(),
+        }
+    }
+}
+
+struct Timer {
+    pub value: u8,
+    handle: thread::JoinHandle<()>,
+}
+
+impl Timer {
+    pub fn new() -> Self {
+        Self {
+            value: 0,
+            handle: thread::spawn(|| {
+                loop {
+                }
+            }),
         }
     }
 }

@@ -1,6 +1,6 @@
 use std::{error::Error, fmt, usize};
 
-const MEMORY_SIZE: usize = 0x1000; // 4kB
+use crate::config::MEMORY_SIZE;
 
 #[derive(Debug, PartialEq)]
 pub enum MemoryError {
@@ -97,7 +97,7 @@ mod tests {
     fn test_memory_initialization() {
         let memory = Memory::new();
         for i in 0..MEMORY_SIZE {
-            assert_eq!(memory.buf[i], 0);
+            assert_eq!(memory.read_byte(i), Ok(0));
         }
     }
     
