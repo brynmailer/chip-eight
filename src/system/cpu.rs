@@ -1,4 +1,13 @@
 use std::thread;
+use std::time::Duration;
+use std::sync::{
+    Arc,
+    atomic::{
+        AtomicU8,
+        AtomicBool,
+        Ordering,
+    },
+};
 
 pub struct CPU {
     // Stack containing 16-bit addressess used to call/return from functions and subroutines.
@@ -42,18 +51,45 @@ impl CPU {
 }
 
 struct Timer {
-    pub value: u8,
+    value: Arc<AtomicU8>,
+    running: Arc<AtomicBool>,
     handle: thread::JoinHandle<()>,
 }
 
 impl Timer {
     pub fn new() -> Self {
-        Self {
-            value: 0,
-            handle: thread::spawn(|| {
-                loop {
+        let value = Arc::new(AtomicU8::new(0));
+        let running = Arc::new(AtomicBool::new(false));
+
+        let value_clone = Arc::clone(&value);
+        let running_clone = Arc::clone(&running);
+
+        // TODO: implement running functionality
+        let handle = thread::spawn(move || {
+            let tick_duration = Duration::from_millis(1000 / 60); // 60Hz
+            
+            loop {
+                thread::sleep(tick_duration);
+
+                let current = value_clone.load(Ordering::Acquire);
+
+                if current > 0 {
+                    value_clone.store(current - 1, Ordering::Release);
                 }
-            }),
+            }
+        });
+
+        Self {
+            value,
+            handle,
         }
+    }
+
+    pub fn get(&self) -> u8 {
+        self.value.load(Ordering::Acquire)
+    }
+
+    pub fn set(&self, new_value: u8) {
+        self.value.store(new_value, Ordering::Release)
     }
 }
