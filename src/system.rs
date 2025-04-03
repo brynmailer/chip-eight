@@ -36,7 +36,7 @@ mod tests {
 
     #[test]
     fn test_new_system_initializes_correctly() {
-        let system = System::new();
+        let _system = System::new();
         // This is just testing the constructor works without panicking
         // Further tests could verify initial memory/CPU state if those were public
     }
