@@ -38,6 +38,8 @@ impl CPU {
             v: [0; 16],
             i: 0,
             delay: Timer::new(),
+            // TODO: Allow Timer::new() to accept a closure that will be run
+            // whenever the timer value is decremented.
             sound: Timer::new(),
         }
     }
