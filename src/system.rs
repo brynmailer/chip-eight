@@ -1,20 +1,22 @@
 mod cpu;
 mod memory;
+mod interface;
 
 use crate::config::DEFAULT_FONT;
 
 use cpu::CPU;
 use memory::{Memory, MemoryError};
+pub use interface::Screen;
 
-pub struct System {
-    cpu: CPU,
+pub struct System<I: Screen> {
+    cpu: CPU<I>,
     memory: Memory,
 }
 
-impl System {
-    pub fn new() -> Self {
+impl<I: Screen> System<I> {
+    pub fn new(interface: I) -> Self {
         Self {
-            cpu: CPU::new(),
+            cpu: CPU::new(interface),
             memory: Memory::new(),
         }
     }

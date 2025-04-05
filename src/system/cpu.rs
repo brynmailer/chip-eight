@@ -1,8 +1,9 @@
 mod timer;
 
 use self::timer::Timer;
+use super::Screen;
 
-pub struct CPU {
+pub struct CPU<I: Screen> {
     // Stack containing 16-bit addressess used to call/return from functions and subroutines.
     stack: Vec<u16>,
 
@@ -25,10 +26,12 @@ pub struct CPU {
     // Sound timer. Functions like the delay timer, but additionally makes a beeping
     // sound when the value is not 0.
     sound: Timer,
+
+    interface: I,
 }
 
-impl CPU {
-    pub fn new() -> Self {
+impl<I: Screen> CPU<I> {
+    pub fn new(interface: I) -> Self {
         Self {
             stack: Vec::new(),
             sp: 0,
@@ -41,6 +44,7 @@ impl CPU {
             // TODO: Allow Timer::new() to accept a closure that will be run
             // whenever the timer value is decremented.
             sound: Timer::new(),
+            interface,
         }
     }
 }
