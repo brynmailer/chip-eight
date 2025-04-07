@@ -2,13 +2,13 @@ mod timer;
 mod memory;
 mod interface;
 
-use std::ops::Deref;
+use std::sync::Arc;
 
 use crate::config::DEFAULT_FONT;
 
 use timer::Timer;
 use memory::{Memory, MemoryError};
-pub use interface::Interface;
+use interface::Interface;
 
 pub struct ChipEight {
     // Stack containing 16-bit addressess used to call/return from functions and subroutines.
@@ -33,7 +33,7 @@ pub struct ChipEight {
 
     memory: Memory,
 
-    interface: Option<Box<dyn Interface>>,
+    interface: Arc<Interface>,
 }
 
 impl ChipEight {
@@ -46,17 +46,10 @@ impl ChipEight {
             v: [0; 16],
             i: 0,
             delay: Timer::new(),
-            // TODO: Allow Timer::new() to accept a closure that will be run
-            // whenever the timer value is decremented.
             sound: Timer::new(),
             memory: Memory::new(),
-            interface: None,
+            interface: Arc::new(Interface::new()),
         }
-    }
-
-    pub fn with_interface(mut self, interface: Box<dyn Interface>) -> Self {
-        self.interface = Some(interface);
-        self
     }
 
     pub fn load_rom(mut self, rom: &[u8]) -> Result<Self, MemoryError> {
@@ -69,7 +62,9 @@ impl ChipEight {
         Ok(self)
     }
 
-    pub fn play(self) {
-        todo!();
+    pub fn play(&mut self) {
+        self.delay.start(None);
+        let interface = Arc::clone(&self.interface);
+        self.sound.start(Some(Box::new(move || interface.play_sound())));
     }
 }
