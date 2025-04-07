@@ -1,14 +1,18 @@
 mod timer;
+mod memory;
+mod interface;
 
-use self::timer::Timer;
-use super::Screen;
+use std::ops::Deref;
 
-pub struct CPU<I: Screen> {
+use crate::config::DEFAULT_FONT;
+
+use timer::Timer;
+use memory::{Memory, MemoryError};
+pub use interface::Interface;
+
+pub struct ChipEight {
     // Stack containing 16-bit addressess used to call/return from functions and subroutines.
     stack: Vec<u16>,
-
-    // Stack pointer
-    sp: usize,
 
     // Program counter which points to the current instruction in memory.
     pc: usize,
@@ -27,14 +31,15 @@ pub struct CPU<I: Screen> {
     // sound when the value is not 0.
     sound: Timer,
 
-    interface: I,
+    memory: Memory,
+
+    interface: Option<Box<dyn Interface>>,
 }
 
-impl<I: Screen> CPU<I> {
-    pub fn new(interface: I) -> Self {
+impl ChipEight {
+    pub fn new() -> Self {
         Self {
             stack: Vec::new(),
-            sp: 0,
             // Program counter starts at 0x200 for compatibility with old CHIP-8 programs. Where
             // the first 512 bytes of memory were kept free for the interpreter and font data.
             pc: 0x200, 
@@ -44,7 +49,27 @@ impl<I: Screen> CPU<I> {
             // TODO: Allow Timer::new() to accept a closure that will be run
             // whenever the timer value is decremented.
             sound: Timer::new(),
-            interface,
+            memory: Memory::new(),
+            interface: None,
         }
+    }
+
+    pub fn with_interface(mut self, interface: Box<dyn Interface>) -> Self {
+        self.interface = Some(interface);
+        self
+    }
+
+    pub fn load_rom(mut self, rom: &[u8]) -> Result<Self, MemoryError> {
+        // Load font
+        self.memory.write_buf(0x050, &DEFAULT_FONT)?;
+
+        // Load ROM from 0x200
+        self.memory.write_buf(0x200, rom)?;
+
+        Ok(self)
+    }
+
+    pub fn play(self) {
+        todo!();
     }
 }
