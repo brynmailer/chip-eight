@@ -1,13 +1,16 @@
 mod config;
 mod core;
 
-use config::{DISPLAY_WIDTH, DISPLAY_HEIGHT};
+use std::{fs::File, io::Read};
+
 use core::ChipEight;
 
 fn main() {
+    let mut file = File::open("roms/IBM-logo.ch8").unwrap();
+    let mut rom_buf = Vec::new();
+    file.read_to_end(&mut rom_buf).unwrap();
+
     ChipEight::new()
-        .with_interface(/* Interface trait */)
-        .load_rom(/* Rom */)
-        .unwrap()
+        .load_rom(&rom_buf).unwrap()
         .play();
 }
