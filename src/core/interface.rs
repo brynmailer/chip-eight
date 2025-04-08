@@ -1,7 +1,5 @@
 #[derive(Clone)]
 pub enum InterfaceEvent {
-    Render(Vec<u8>),
-    GetKeysDown,
     PlayTone,
     StopTone,
 }
@@ -34,7 +32,7 @@ pub trait Input {
 }
 
 pub trait Audio {
-    fn play_tone(&mut self);
+    fn play_tone(&self);
 
-    fn stop_tone(&mut self);
+    fn stop_tone(&self);
 }

@@ -43,8 +43,8 @@ pub struct ChipEight {
 
     memory: Memory,
 
-    // MPSC channel for interface events
-    event_channel: (Sender<InterfaceEvent>, Receiver<InterfaceEvent>),
+    // MPSC receiver for interface events
+    event_rx: Receiver<InterfaceEvent>,
 
     // Interfaces
     display: Option<Box<dyn Display>>,
@@ -64,9 +64,9 @@ impl ChipEight {
             v: [0; 16],
             i: 0,
             delay: Timer::new(None),
-            sound: Timer::new(Some((event_tx.clone(), InterfaceEvent::PlayTone))),
+            sound: Timer::new(Some(event_tx.clone())),
             memory: Memory::new(),
-            event_channel: (event_tx, event_rx),
+            event_rx,
             display: None,
             input: None,
             audio: None,
@@ -97,19 +97,20 @@ impl ChipEight {
         self.memory.write_buf(0x200, rom)
             .expect("Failed to load provided rom");
 
-        let (event_tx, event_rx) = &self.event_channel;
-
         loop {
-            if let Ok(event) = event_rx.try_recv() {
+            // Handle interface events
+            if let Ok(event) = self.event_rx.try_recv() {
                 match event {
-                    InterfaceEvent::PlayTone => if let Some(audio) = &mut self.audio {
+                    InterfaceEvent::PlayTone => if let Some(audio) = &self.audio {
                         audio.play_tone();
                     },
-                    _ => (),
+                    InterfaceEvent::StopTone => if let Some(audio) = &self.audio {
+                        audio.stop_tone();
+                    },
                 }
             }
 
-
+            
         }
     }
 }
