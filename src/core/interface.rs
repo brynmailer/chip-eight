@@ -1,24 +1,40 @@
-use crate::config::{DISPLAY_WIDTH, DISPLAY_HEIGHT};
-
-pub struct Interface {
+#[derive(Clone)]
+pub enum InterfaceEvent {
+    Render(Vec<u8>),
+    GetKeysDown,
+    PlayTone,
+    StopTone,
 }
 
-impl Interface {
-    pub fn new() -> Self {
-        Self {
+pub enum Key {
+    Zero,
+    One,
+    Two,
+    Three,
+    Four,
+    Five,
+    Six,
+    Seven,
+    Eight,
+    Nine,
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+}
 
-        }
-    }
+pub trait Display {
+    fn render(&mut self, buf: &[[u8; 32]; 64]);
+}
 
-    pub fn update(&mut self, buf: &[[u8; DISPLAY_HEIGHT]; DISPLAY_WIDTH]) {
-        todo!();
-    }
+pub trait Input {
+    fn get_keys_down(&self) -> Vec<Key>;
+}
 
-    pub fn get_pressed_keys(&self) -> Vec<u8> {
-        todo!();
-    }
+pub trait Audio {
+    fn play_tone(&mut self);
 
-    pub fn play_sound(&self) {
-        todo!();
-    }
+    fn stop_tone(&mut self);
 }

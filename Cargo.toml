@@ -4,4 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-minifb = "0.28.0"
+clap = { version = "4.5.35", features = ["derive"] }
+sdl3 = "0.14.22"

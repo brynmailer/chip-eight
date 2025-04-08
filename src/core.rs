@@ -2,13 +2,23 @@ mod timer;
 mod memory;
 mod interface;
 
-use std::sync::Arc;
+use std::sync::mpsc::{
+    channel,
+    Sender,
+    Receiver,
+};
 
 use crate::config::DEFAULT_FONT;
 
+use interface::InterfaceEvent;
 use timer::Timer;
-use memory::{Memory, MemoryError};
-use interface::Interface;
+use memory::Memory;
+
+pub use interface::{
+    Display,
+    Input,
+    Audio,
+};
 
 pub struct ChipEight {
     // Stack containing 16-bit addressess used to call/return from functions and subroutines.
@@ -33,11 +43,19 @@ pub struct ChipEight {
 
     memory: Memory,
 
-    interface: Arc<Interface>,
+    // MPSC channel for interface events
+    event_channel: (Sender<InterfaceEvent>, Receiver<InterfaceEvent>),
+
+    // Interfaces
+    display: Option<Box<dyn Display>>,
+    input: Option<Box<dyn Input>>,
+    audio: Option<Box<dyn Audio>>,
 }
 
 impl ChipEight {
     pub fn new() -> Self {
+        let (event_tx, event_rx) = channel();
+
         Self {
             stack: Vec::new(),
             // Program counter starts at 0x200 for compatibility with old CHIP-8 programs. Where
@@ -45,26 +63,53 @@ impl ChipEight {
             pc: 0x200, 
             v: [0; 16],
             i: 0,
-            delay: Timer::new(),
-            sound: Timer::new(),
+            delay: Timer::new(None),
+            sound: Timer::new(Some((event_tx.clone(), InterfaceEvent::PlayTone))),
             memory: Memory::new(),
-            interface: Arc::new(Interface::new()),
+            event_channel: (event_tx, event_rx),
+            display: None,
+            input: None,
+            audio: None,
         }
     }
 
-    pub fn load_rom(mut self, rom: &[u8]) -> Result<Self, MemoryError> {
-        // Load font
-        self.memory.write_buf(0x050, &DEFAULT_FONT)?;
-
-        // Load ROM from 0x200
-        self.memory.write_buf(0x200, rom)?;
-
-        Ok(self)
+    pub fn set_display(&mut self, display: Box<dyn Display>) -> &mut Self {
+        self.display = Some(display);
+        self
     }
 
-    pub fn play(&mut self) {
-        self.delay.start(None);
-        let interface = Arc::clone(&self.interface);
-        self.sound.start(Some(Box::new(move || interface.play_sound())));
+    pub fn set_input(&mut self, input: Box<dyn Input>) -> &mut Self {
+        self.input = Some(input);
+        self
+    }
+
+    pub fn set_audio(&mut self, audio: Box<dyn Audio>) -> &mut Self {
+        self.audio = Some(audio);
+        self
+    }
+
+    pub fn start(&mut self, rom: &[u8]) {
+        // Load font
+        self.memory.write_buf(0x050, &DEFAULT_FONT)
+            .expect("Failed to load default font");
+
+        // Load ROM from 0x200
+        self.memory.write_buf(0x200, rom)
+            .expect("Failed to load provided rom");
+
+        let (event_tx, event_rx) = &self.event_channel;
+
+        loop {
+            if let Ok(event) = event_rx.try_recv() {
+                match event {
+                    InterfaceEvent::PlayTone => if let Some(audio) = &mut self.audio {
+                        audio.play_tone();
+                    },
+                    _ => (),
+                }
+            }
+
+
+        }
     }
 }

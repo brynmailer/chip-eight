@@ -2,12 +2,15 @@ use std::thread;
 use std::time::Duration;
 use std::sync::{
     Arc,
+    mpsc::Sender,
     atomic::{
         AtomicU8,
         AtomicBool,
         Ordering,
     },
 };
+
+use super::interface::InterfaceEvent;
 
 pub struct Timer {
     value: Arc<AtomicU8>,
@@ -16,39 +19,35 @@ pub struct Timer {
 }
 
 impl Timer {
-    pub fn new() -> Self {
+    pub fn new(on_tick: Option<(Sender<InterfaceEvent>, InterfaceEvent)>) -> Self {
         let value = Arc::new(AtomicU8::new(0));
-        let running = Arc::new(AtomicBool::new(false));
+        let running = Arc::new(AtomicBool::new(true));
 
-        Self {
-            value,
-            running,
-            handle: None,
-        }
-    }
-
-    pub fn start(&mut self, on_tick: Option<Box<dyn Fn() + Send>>) {
-        let value = Arc::clone(&self.value);
-        let running = Arc::clone(&self.running);
+        let value_clone = Arc::clone(&value);
+        let running_clone = Arc::clone(&running);
 
         let handle = thread::spawn(move || {
             let tick_duration = Duration::from_millis(1000 / 60); // 60hz
             
-            while running.load(Ordering::Relaxed) {
+            while running_clone.load(Ordering::Relaxed) {
                 thread::sleep(tick_duration);
 
-                let current = value.load(Ordering::Acquire);
+                let current = value_clone.load(Ordering::Acquire);
 
                 if current > 0 {
-                    value.store(current - 1, Ordering::Release);
-                    if let Some(callback) = &on_tick {
-                        callback();
+                    value_clone.store(current - 1, Ordering::Release);
+                    if let Some((sender, event)) = &on_tick {
+                        let _ = sender.send(event.clone());
                     };
                 }
             }
         });
 
-        self.handle = Some(handle);
+        Self {
+            value,
+            running,
+            handle: Some(handle),
+        }
     }
 
     pub fn get(&self) -> u8 {

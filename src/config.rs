@@ -3,8 +3,8 @@ pub const CLOCK_SPEED: usize = 700; // Instructions per second
 pub const MEMORY_SIZE: usize = 0x1000; // 4kB
 
 // Display
-pub const DISPLAY_WIDTH: usize = 1280;
-pub const DISPLAY_HEIGHT: usize = 640;
+pub const DISPLAY_WIDTH: u32 = 1280;
+pub const DISPLAY_HEIGHT: u32 = 640;
 pub const PIXEL_SIZE: usize = 20;
 
 pub const DEFAULT_FONT: [u8; 80] = [
