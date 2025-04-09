@@ -136,7 +136,7 @@ impl ChipEight {
                 0x1 => {
                     match nnn {
                         _ => {
-                            todo!();
+                            self.pc = nnn as usize;
                         },
                     }
                 },
