@@ -2,11 +2,7 @@ mod timer;
 mod memory;
 mod interface;
 
-use std::sync::mpsc::{
-    channel,
-    Sender,
-    Receiver,
-};
+use std::sync::mpsc::{channel, Receiver};
 
 use crate::config::DEFAULT_FONT;
 
@@ -109,8 +105,46 @@ impl ChipEight {
                     },
                 }
             }
-
             
+            // Fetch current instruction and increment PC to point to next instruction
+            let instruction = self.memory.read_buf(self.pc, 2).unwrap_or_else(|error| {
+                eprintln!("Failed to fetch instruction: {}", error);
+                std::process::exit(1);
+            });
+            self.pc += 2;
+
+            // Decode parts of instruction for later use
+            let op_type = instruction[0] >> 4;
+            let x = instruction[0] & 0x0F;
+            let y = instruction[1] >> 4;
+            let n = instruction[1] & 0x0F;
+            let nn = instruction[1];
+            let nnn = (((instruction[0] & 0x0F) as u16) >> 8) | (instruction[1] as u16);
+
+            // Execute instruction
+            match op_type {
+                0x0 => {
+                    match nnn {
+                        0x00E0 => {
+                            
+                        },
+                        _ => {
+                            todo!();
+                        },
+                    }
+                },
+                0x1 => {
+                    match nnn {
+                        _ => {
+                            todo!();
+                        },
+                    }
+                },
+                _ => {
+                    eprintln!("Encountered an unknown opcode");
+                    std::process::exit(1);
+                },
+            }
         }
     }
 }
