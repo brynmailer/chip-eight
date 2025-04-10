@@ -1,14 +1,16 @@
 mod timer;
 mod memory;
 mod interface;
+mod instructions;
 
 use std::sync::mpsc::{channel, Receiver};
 
 use crate::config::DEFAULT_FONT;
 
-use interface::InterfaceEvent;
 use timer::Timer;
 use memory::Memory;
+use interface::InterfaceEvent;
+use instructions::parse_opcode;
 
 pub use interface::{
     Display,
@@ -122,29 +124,7 @@ impl ChipEight {
             let nnn = (((instruction[0] & 0x0F) as u16) >> 8) | (instruction[1] as u16);
 
             // Execute instruction
-            match op_type {
-                0x0 => {
-                    match nnn {
-                        0x00E0 => {
-                            
-                        },
-                        _ => {
-                            todo!();
-                        },
-                    }
-                },
-                0x1 => {
-                    match nnn {
-                        _ => {
-                            self.pc = nnn as usize;
-                        },
-                    }
-                },
-                _ => {
-                    eprintln!("Encountered an unknown opcode");
-                    std::process::exit(1);
-                },
-            }
+            let instruction = parse_opcode(((instruction[0] as u16) << 8) | instruction[1] as u16);
         }
     }
 }
