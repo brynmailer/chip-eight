@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.35", features = ["derive"] }
-sdl3 = "0.14.22"
+sdl3 = { version = "0.14.22", features = ["build-from-source"] }

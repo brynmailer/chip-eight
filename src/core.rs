@@ -3,7 +3,11 @@ mod memory;
 mod interface;
 mod instructions;
 
-use std::sync::mpsc::{channel, Receiver};
+use std::{
+    sync::mpsc::{channel, Receiver},
+    time::Duration,
+    thread,
+};
 
 use crate::config::DEFAULT_FONT;
 
@@ -87,6 +91,9 @@ impl ChipEight {
     }
 
     pub fn start(&mut self, rom: &[u8]) {
+        // Define clock speed in Hz
+        let cycle_duration = Duration::from_millis(1000 / 700);
+
         // Store font at address 0x50
         self.memory.write_buf(0x50, &DEFAULT_FONT).unwrap_or_else(|error| {
             panic!("Failed to load default font: {}", error);
@@ -143,11 +150,18 @@ impl ChipEight {
                                 panic!("Failed to fetch sprite: {}", error);
                             });
 
-                        display.draw_sprite(self.v[reg_x], self.v[reg_y], sprite);
+                        if display.draw_sprite(self.v[reg_x], self.v[reg_y], sprite) {
+                            self.v[0xF] = 1;
+                        } else {
+                            self.v[0xF] = 0;
+                        }
                     }
                 },
                 _ => todo!(),
             }
+
+            // Sleep to ensure roughly correct clock speed
+            thread::sleep(cycle_duration);
         }
     }
 }

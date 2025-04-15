@@ -14,6 +14,28 @@ struct Args {
     path_to_rom: String,
 }
 
+macro_rules! index {
+    ($x:expr, $y:expr) => {
+        $y * self.width + $x
+    };
+}
+
+struct Display {
+    width: usize,
+    height: usize,
+    buf: Vec<bool>,
+}
+
+impl Display {
+    pub fn new(width: usize, height: usize) -> Self {
+        Self {
+            width,
+            height,
+            buf: vec![false; width * height],
+        }
+    }
+}
+
 fn main() {
     let args = Args::parse();
 
@@ -22,5 +44,6 @@ fn main() {
     file.read_to_end(&mut rom_buf).unwrap();
 
     ChipEight::new()
+        .set_display(display)
         .start(&rom_buf);
 }
