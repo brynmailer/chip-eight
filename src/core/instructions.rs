@@ -1,5 +1,16 @@
 use std::{error::Error, fmt};
 
+#[derive(Debug, PartialEq)]
+pub struct InvalidOpcodeError(u16);
+
+impl fmt::Display for InvalidOpcodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid opcode 0x{:04X}", self.0)
+    }
+}
+
+impl Error for InvalidOpcodeError {}
+
 pub enum Instruction {
     Clear,
     Return,
@@ -36,17 +47,6 @@ pub enum Instruction {
     VDump(usize),
     VLoad(usize),
 }
-
-#[derive(Debug, PartialEq)]
-pub struct InvalidOpcodeError(u16);
-
-impl fmt::Display for InvalidOpcodeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid opcode 0x{:04X}", self.0)
-    }
-}
-
-impl Error for InvalidOpcodeError {}
 
 impl TryFrom<u16> for Instruction {
     type Error = InvalidOpcodeError;

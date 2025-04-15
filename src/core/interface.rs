@@ -24,7 +24,8 @@ pub enum Key {
 }
 
 pub trait Display {
-    fn render(&mut self, buf: &[[u8; 32]; 64]);
+    fn clear(&mut self);
+    fn draw_sprite(&mut self, x: u8, y: u8, sprite: &[u8]);
 }
 
 pub trait Input {

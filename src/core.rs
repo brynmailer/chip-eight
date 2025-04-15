@@ -87,13 +87,15 @@ impl ChipEight {
     }
 
     pub fn start(&mut self, rom: &[u8]) {
-        // Load font
-        self.memory.write_buf(0x050, &DEFAULT_FONT)
-            .expect("Failed to load default font");
+        // Store font at address 0x50
+        self.memory.write_buf(0x50, &DEFAULT_FONT).unwrap_or_else(|error| {
+            panic!("Failed to load default font: {}", error);
+        });
 
-        // Load ROM from 0x200
-        self.memory.write_buf(0x200, rom)
-            .expect("Failed to load provided rom");
+        // Store ROM starting from address 0x200
+        self.memory.write_buf(0x200, rom).unwrap_or_else(|error| {
+            panic!("Failed to load rom: {}", error);
+        });
 
         loop {
             // Handle interface events
@@ -110,19 +112,42 @@ impl ChipEight {
             
             // Fetch and decode current instruction
             let parts = self.memory.read_buf(self.pc, 2).unwrap_or_else(|error| {
-                eprintln!("Failed to fetch instruction: {}", error);
-                std::process::exit(1);
+                panic!("Failed to fetch instruction: {}", error);
             });
             let opcode = ((parts[0] as u16) << 8) | parts[1] as u16;
             let instruction: Instruction = opcode
                 .try_into()
                 .unwrap_or_else(|error| {
-                    eprintln!("Failed to parse instruction: {}", error);
-                    std::process::exit(1);
+                    panic!("Failed to parse instruction: {}", error);
                 });
 
             // Increment PC to point to next instruction
             self.pc += 2;
+
+            // Execute instruction
+            match instruction {
+                Instruction::Clear => {
+                    if let Some(display) = &mut self.display {
+                        display.clear();
+                    }
+                },
+                Instruction::Jump(addr) => self.pc = addr,
+                Instruction::SetVx(reg, val) => self.v[reg] = val,
+                Instruction::AddToVx(reg, val) => self.v[reg] += val,
+                Instruction::SetI(addr) => self.i = addr,
+                Instruction::Draw(reg_x, reg_y, height) => {
+                    if let Some(display) = &mut self.display {
+                        let sprite = self.memory
+                            .read_buf(self.i, height.into())
+                            .unwrap_or_else(|error| {
+                                panic!("Failed to fetch sprite: {}", error);
+                            });
+
+                        display.draw_sprite(self.v[reg_x], self.v[reg_y], sprite);
+                    }
+                },
+                _ => todo!(),
+            }
         }
     }
 }
