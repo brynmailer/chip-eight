@@ -10,7 +10,7 @@ use crate::config::DEFAULT_FONT;
 use timer::Timer;
 use memory::Memory;
 use interface::InterfaceEvent;
-use instructions::parse_opcode;
+use instructions::Instruction;
 
 pub use interface::{
     Display,
@@ -108,20 +108,21 @@ impl ChipEight {
                 }
             }
             
-            // Fetch current instruction and increment PC to point to next instruction
-            let [first, second] = self.memory.read_buf(self.pc, 2).unwrap_or_else(|error| {
+            // Fetch and decode current instruction
+            let parts = self.memory.read_buf(self.pc, 2).unwrap_or_else(|error| {
                 eprintln!("Failed to fetch instruction: {}", error);
                 std::process::exit(1);
             });
-            let opcode = ((*first as u16) << 8) | *second as u16;
+            let opcode = ((parts[0] as u16) << 8) | parts[1] as u16;
+            let instruction: Instruction = opcode
+                .try_into()
+                .unwrap_or_else(|error| {
+                    eprintln!("Failed to parse instruction: {}", error);
+                    std::process::exit(1);
+                });
+
+            // Increment PC to point to next instruction
             self.pc += 2;
-
-            execute_instruction!(opcode, {
-                Clear => println!("Cleared screen"),
-                _ => todo!(),
-            });
-
-
         }
     }
 }
