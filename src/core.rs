@@ -4,10 +4,16 @@ mod interface;
 mod instructions;
 
 use std::{
-    sync::mpsc::{channel, Receiver},
-    time::Duration,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{channel, Receiver},
+        Arc,
+    },
     thread,
+    time::Duration,
 };
+
+use ctrlc;
 
 use crate::config::DEFAULT_FONT;
 
@@ -91,6 +97,14 @@ impl ChipEight {
     }
 
     pub fn start(&mut self, rom: &[u8]) {
+        let running = Arc::new(AtomicBool::new(true));
+        let running_clone = running.clone();
+
+        ctrlc::set_handler(move || {
+            println!("Shutting down...");
+            running_clone.store(false, Ordering::SeqCst);
+        }).expect("Failed to set Ctrl-C handler");
+
         // Define clock speed in Hz
         let cycle_duration = Duration::from_millis(1000 / 700);
 
@@ -104,7 +118,7 @@ impl ChipEight {
             panic!("Failed to load rom: {}", error);
         });
 
-        loop {
+        while running.load(Ordering::SeqCst) {
             // Handle interface events
             if let Ok(event) = self.event_rx.try_recv() {
                 match event {
@@ -150,7 +164,7 @@ impl ChipEight {
                                 panic!("Failed to fetch sprite: {}", error);
                             });
 
-                        if display.draw_sprite(self.v[reg_x], self.v[reg_y], sprite) {
+                        if display.draw_sprite(self.v[reg_x] as usize, self.v[reg_y] as usize, sprite) {
                             self.v[0xF] = 1;
                         } else {
                             self.v[0xF] = 0;
