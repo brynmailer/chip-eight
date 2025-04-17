@@ -10,7 +10,7 @@ use std::sync::{
     },
 };
 
-use super::interface::InterfaceEvent;
+use super::peripherals::PeripheralEvent;
 
 pub struct Timer {
     value: Arc<AtomicU8>,
@@ -19,7 +19,7 @@ pub struct Timer {
 }
 
 impl Timer {
-    pub fn new(event_channel: Option<Sender<InterfaceEvent>>) -> Self {
+    pub fn new(event_channel: Option<Sender<PeripheralEvent>>) -> Self {
         let value = Arc::new(AtomicU8::new(0));
         let running = Arc::new(AtomicBool::new(true));
 
@@ -37,11 +37,11 @@ impl Timer {
                 if current > 0 {
                     value_clone.store(current - 1, Ordering::Release);
                     if let Some(sender) = &event_channel {
-                        let _ = sender.send(InterfaceEvent::PlayTone);
+                        let _ = sender.send(PeripheralEvent::PlayTone);
                     };
                 } else {
                     if let Some(sender) = &event_channel {
-                        let _ = sender.send(InterfaceEvent::StopTone);
+                        let _ = sender.send(PeripheralEvent::StopTone);
                     };
                 }
             }

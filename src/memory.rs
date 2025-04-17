@@ -1,7 +1,5 @@
 use std::{error::Error, fmt, usize};
 
-use crate::config::MEMORY_SIZE;
-
 #[derive(Debug, PartialEq)]
 pub enum MemoryError {
     AddrOutOfBounds(usize),
@@ -20,18 +18,18 @@ impl fmt::Display for MemoryError {
 impl Error for MemoryError {}
 
 pub struct Memory {
-    buf: [u8; MEMORY_SIZE],
+    buffer: Vec<u8>,
 }
 
 impl Memory {
-    pub fn new() -> Self {
+    pub fn new(length: usize) -> Self {
         Self {
-            buf: [0; MEMORY_SIZE],
+            buffer: vec![0; length],
         }
     }
 
     fn is_in_bounds(&self, addr: usize) -> bool {
-        addr < self.buf.len()
+        addr < self.buffer.len()
     }
 
     pub fn read_byte(&self, addr: usize) -> Result<u8, MemoryError> {
@@ -39,7 +37,7 @@ impl Memory {
             return Err(MemoryError::AddrOutOfBounds(addr));
         }
 
-        Ok(self.buf[addr])
+        Ok(self.buffer[addr])
     }
 
     pub fn read_buf(
@@ -55,7 +53,7 @@ impl Memory {
             return Err(MemoryError::RangeOutOfBounds(addr, len));
         }
 
-        Ok(&self.buf[addr..addr + len])
+        Ok(&self.buffer[addr..addr + len])
     }
 
     pub fn write_byte(
@@ -67,7 +65,7 @@ impl Memory {
             return Err(MemoryError::AddrOutOfBounds(addr));
         }
 
-        self.buf[addr] = data;
+        self.buffer[addr] = data;
         Ok(())
     }
 
@@ -84,7 +82,7 @@ impl Memory {
             return Err(MemoryError::RangeOutOfBounds(addr, data.len()));
         }
 
-        self.buf[addr..(addr + data.len())].copy_from_slice(data);
+        self.buffer[addr..(addr + data.len())].copy_from_slice(data);
         Ok(())
     }
 }
@@ -95,18 +93,18 @@ mod tests {
 
     #[test]
     fn test_memory_initialization() {
-        let memory = Memory::new();
-        for i in 0..MEMORY_SIZE {
+        let memory = Memory::new(0x1000);
+        for i in 0..0x1000 {
             assert_eq!(memory.read_byte(i), Ok(0));
         }
     }
     
     #[test]
     fn test_read_write_byte() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(0x1000);
         
         // Test different locations
-        let test_locations = [0, 1, MEMORY_SIZE / 2, MEMORY_SIZE - 2, MEMORY_SIZE - 1];
+        let test_locations = [0, 1, 0x1000 / 2, 0x1000 - 2, 0x1000 - 1];
         
         for addr in test_locations {
             memory.write_byte(addr, 0xAA).unwrap();
@@ -119,7 +117,7 @@ mod tests {
     
     #[test]
     fn test_read_write_buffer() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(0x1000);
         let test_data = [0x12, 0x34, 0x56, 0x78, 0x9A];
         
         memory.write_buf(100, &test_data).unwrap();
@@ -130,31 +128,31 @@ mod tests {
     
     #[test]
     fn test_out_of_bounds_access() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(0x1000);
         
         // Test out of bounds byte access
         assert_eq!(
-            memory.read_byte(MEMORY_SIZE), 
-            Err(MemoryError::AddrOutOfBounds(MEMORY_SIZE))
+            memory.read_byte(0x1000), 
+            Err(MemoryError::AddrOutOfBounds(0x1000))
         );
         
         assert_eq!(
-            memory.write_byte(MEMORY_SIZE, 0xFF),
-            Err(MemoryError::AddrOutOfBounds(MEMORY_SIZE))
+            memory.write_byte(0x1000, 0xFF),
+            Err(MemoryError::AddrOutOfBounds(0x1000))
         );
     }
     
     #[test]
     fn test_buffer_boundary_conditions() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(0x1000);
         let test_data = [0xFF; 10];
         
         // Test buffer that fits exactly at the end
-        let start_addr = MEMORY_SIZE - test_data.len();
+        let start_addr = 0x1000 - test_data.len();
         assert!(memory.write_buf(start_addr, &test_data).is_ok());
         
         // Test buffer that extends past the end
-        let invalid_addr = MEMORY_SIZE - test_data.len() + 1;
+        let invalid_addr = 0x1000 - test_data.len() + 1;
         assert_eq!(
             memory.write_buf(invalid_addr, &test_data),
             Err(MemoryError::RangeOutOfBounds(invalid_addr, test_data.len()))
@@ -163,12 +161,12 @@ mod tests {
     
     #[test]
     fn test_empty_buffer() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(0x1000);
         let empty: [u8; 0] = [];
         
         // Empty buffer writes should succeed
         assert!(memory.write_buf(0, &empty).is_ok());
-        assert!(memory.write_buf(MEMORY_SIZE - 1, &empty).is_ok());
+        assert!(memory.write_buf(0x1000 - 1, &empty).is_ok());
         
         // Empty buffer reads should return empty slice
         assert_eq!(memory.read_buf(100, 0).unwrap(), &[]);
@@ -176,7 +174,7 @@ mod tests {
     
     #[test]
     fn test_overlapping_writes() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(0x1000);
         
         // Write first buffer
         let first_data = [0x11, 0x22, 0x33, 0x44, 0x55];
@@ -196,7 +194,7 @@ mod tests {
     
     #[test]
     fn test_read_buf_range() {
-        let mut memory = Memory::new();
+        let mut memory = Memory::new(0x1000);
         
         // Initialize some memory
         for i in 0..20 {
