@@ -14,6 +14,7 @@ use std::{
 };
 
 use ctrlc;
+use rand::{self, Rng};
 
 use sdl3::Sdl;
 use timer::Timer;
@@ -181,7 +182,7 @@ impl ChipEight {
 
         let running_clone = running.clone();
         ctrlc::set_handler(move || {
-            println!("Shutting down...");
+            println!("\nShutting down...");
             running_clone.store(false, Ordering::SeqCst);
         }).expect("Failed to set Ctrl-C handler");
 
@@ -233,9 +234,62 @@ impl ChipEight {
                     }
                 },
                 Instruction::Jump(addr) => self.pc = addr,
+                Instruction::Call(addr) => {
+                    self.stack.push(self.pc as u16);
+                    self.pc = addr;
+                }
+                Instruction::IfVxEq(reg, val) => {
+                    if self.v[reg] == val {
+                        self.pc += 2;
+                    }
+                },
+                Instruction::IfVxNotEq(reg, val) => {
+                    if self.v[reg] != val {
+                        self.pc += 2;
+                    }
+                },
+                Instruction::IfVxEqVy(reg_x, reg_y) => {
+                    if self.v[reg_x] == self.v[reg_y] {
+                        self.pc += 2;
+                    }
+                },
                 Instruction::SetVx(reg, val) => self.v[reg] = val,
-                Instruction::AddToVx(reg, val) => self.v[reg] += val,
+                Instruction::AddToVx(reg, val) => self.v[reg] = self.v[reg].wrapping_add(val),
+                Instruction::SetVxToVy(reg_x, reg_y) => self.v[reg_x] = self.v[reg_y],
+                Instruction::SetVxOrVy(reg_x, reg_y) => self.v[reg_x] |= self.v[reg_y],
+                Instruction::SetVxAndVy(reg_x, reg_y) => self.v[reg_x] &= self.v[reg_y],
+                Instruction::SetVxXorVy(reg_x, reg_y) => self.v[reg_x] ^= self.v[reg_y],
+                Instruction::AddVyToVx(reg_x, reg_y) => {
+                    let (result, overflowed) = self.v[reg_x].overflowing_add(self.v[reg_y]);
+                    self.v[reg_x] = result;
+                    self.v[0xF] = overflowed.into();
+                },
+                Instruction::SubVyFromVx(reg_x, reg_y) => {
+                    let (result, overflowed) = self.v[reg_x].overflowing_sub(self.v[reg_y]);
+                    self.v[reg_x] = result;
+                    self.v[0xF] = (!overflowed).into();
+                },
+                Instruction::RightShiftVx(reg) => {
+                    self.v[0xF] = self.v[reg] & 1;
+                    self.v[reg] >>= 1;
+                },
+                Instruction::SubVxFromVy(reg_x, reg_y) => {
+                    let (result, overflowed) = self.v[reg_y].overflowing_sub(self.v[reg_x]);
+                    self.v[reg_x] = result;
+                    self.v[0xF] = (!overflowed).into();
+                },
+                Instruction::LeftShiftVx(reg) => {
+                    self.v[0xF] = (self.v[reg] >> 7) & 1;
+                    self.v[reg] <<= 1;
+                },
+                Instruction::IfVxNotEqVy(reg_x, reg_y) => {
+                    if self.v[reg_x] != self.v[reg_y] {
+                        self.pc += 2;
+                    }
+                },
                 Instruction::SetI(addr) => self.i = addr,
+                Instruction::JumpWithOffset(addr) => self.pc = addr + self.v[0] as usize,
+                Instruction::SetVxRand(reg, val) => self.v[reg] = rand::rng().random::<u8>() & val,
                 Instruction::Draw(reg_x, reg_y, sprite_height) => {
                     let settings = &self.settings.display;
 
@@ -297,7 +351,39 @@ impl ChipEight {
                     if let Some(display) = &mut self.display {
                         display.render();
                     }
-                    println!("");
+                },
+                Instruction::SetVxToDelay(reg) => self.v[reg] = self.delay.get(),
+                Instruction::SetDelayToVx(reg) => self.delay.set(self.v[reg]),
+                Instruction::SetSoundToVx(reg) => self.sound.set(self.v[reg]),
+                Instruction::AddVxToI(reg) => self.i = self.i.wrapping_add(self.v[reg] as usize),
+                Instruction::SetIToCharInVx(reg) => self.i = self.settings.font_addr + ((self.v[reg] & 0xF) * 5) as usize,
+                Instruction::StoreVxBCDAtI(reg) => {
+                    let mut value = self.v[reg];
+                    for index in (0..3).rev() {
+                        self.memory.write_byte(self.i + index, value % 10)
+                            .unwrap_or_else(|error| {
+                                panic!("Failed to store BCD digit to memory: {}", error);
+                            });
+                        
+                        value /= 10;
+                    }
+                },
+                Instruction::VDump(reg) => {
+                    for index in 0..=reg {
+                        self.memory.write_byte(self.i + index, self.v[index])
+                            .unwrap_or_else(|error| {
+                                panic!("Failed to store value in register to memory: {}", error);
+                            });
+                    }
+                },
+                Instruction::VLoad(reg) => {
+                    for index in 0..=reg {
+                        let byte = self.memory.read_byte(self.i + index)
+                            .unwrap_or_else(|error| {
+                                panic!("Failed to load value from memory to register: {}", error);
+                            });
+                        self.v[index] = byte;
+                    }
                 },
                 _ => todo!(),
             }
