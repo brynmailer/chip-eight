@@ -1,10 +1,8 @@
 use sdl3::{
-    pixels::Color,
-    render::{FRect, WindowCanvas},
-    VideoSubsystem,
+    event::Event, keyboard::Keycode, pixels::Color, render::{FRect, WindowCanvas}, EventPump, VideoSubsystem
 };
 
-use super::{Display, DisplaySettings};
+use super::{Display, DisplaySettings, Input, Key};
 
 macro_rules! color {
     ($config:expr, $index:tt) => {
@@ -62,5 +60,137 @@ impl Display for SDL3Display {
 
     fn render(&mut self) {
         self.canvas.present();
+    }
+}
+
+pub struct SDL3Input {
+    event_pump: EventPump,
+}
+
+impl SDL3Input {
+    pub fn new(event_pump: EventPump) -> Self {
+        Self {
+            event_pump,
+        }
+    }
+}
+
+impl Input for SDL3Input {
+    fn get_keys_down(&mut self) -> Vec<Key> {
+        let mut keys: Vec<Key> = vec![];
+
+        for event in self.event_pump.poll_iter() {
+            match event {
+                Event::KeyDown { keycode: Some(Keycode::_1), .. } => {
+                    keys.push(Key::Zero);
+                },
+                Event::KeyDown { keycode: Some(Keycode::_2), .. } => {
+                    keys.push(Key::One);
+                },
+                Event::KeyDown { keycode: Some(Keycode::_3), .. } => {
+                    keys.push(Key::Two);
+                },
+                Event::KeyDown { keycode: Some(Keycode::_4), .. } => {
+                    keys.push(Key::Three);
+                },
+                Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
+                    keys.push(Key::Four);
+                },
+                Event::KeyDown { keycode: Some(Keycode::W), .. } => {
+                    keys.push(Key::Five);
+                },
+                Event::KeyDown { keycode: Some(Keycode::E), .. } => {
+                    keys.push(Key::Six);
+                },
+                Event::KeyDown { keycode: Some(Keycode::R), .. } => {
+                    keys.push(Key::Seven);
+                },
+                Event::KeyDown { keycode: Some(Keycode::A), .. } => {
+                    keys.push(Key::Eight);
+                },
+                Event::KeyDown { keycode: Some(Keycode::S), .. } => {
+                    keys.push(Key::Nine);
+                },
+                Event::KeyDown { keycode: Some(Keycode::D), .. } => {
+                    keys.push(Key::A);
+                },
+                Event::KeyDown { keycode: Some(Keycode::F), .. } => {
+                    keys.push(Key::B);
+                },
+                Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
+                    keys.push(Key::C);
+                },
+                Event::KeyDown { keycode: Some(Keycode::X), .. } => {
+                    keys.push(Key::D);
+                },
+                Event::KeyDown { keycode: Some(Keycode::C), .. } => {
+                    keys.push(Key::E);
+                },
+                Event::KeyDown { keycode: Some(Keycode::V), .. } => {
+                    keys.push(Key::F);
+                },
+                _ => {},
+            }
+        }
+
+        keys
+    }
+
+    fn wait_for_key(&mut self) -> Key {
+        loop {
+            let event = self.event_pump.wait_event();
+
+            match event {
+                Event::KeyDown { keycode: Some(Keycode::_1), .. } => {
+                    return Key::Zero;
+                },
+                Event::KeyDown { keycode: Some(Keycode::_2), .. } => {
+                    return Key::One;
+                },
+                Event::KeyDown { keycode: Some(Keycode::_3), .. } => {
+                    return Key::Two;
+                },
+                Event::KeyDown { keycode: Some(Keycode::_4), .. } => {
+                    return Key::Three;
+                },
+                Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
+                    return Key::Four;
+                },
+                Event::KeyDown { keycode: Some(Keycode::W), .. } => {
+                    return Key::Five;
+                },
+                Event::KeyDown { keycode: Some(Keycode::E), .. } => {
+                    return Key::Six;
+                },
+                Event::KeyDown { keycode: Some(Keycode::R), .. } => {
+                    return Key::Seven;
+                },
+                Event::KeyDown { keycode: Some(Keycode::A), .. } => {
+                    return Key::Eight;
+                },
+                Event::KeyDown { keycode: Some(Keycode::S), .. } => {
+                    return Key::Nine;
+                },
+                Event::KeyDown { keycode: Some(Keycode::D), .. } => {
+                    return Key::A;
+                },
+                Event::KeyDown { keycode: Some(Keycode::F), .. } => {
+                    return Key::B;
+                },
+                Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
+                    return Key::C;
+                },
+                Event::KeyDown { keycode: Some(Keycode::X), .. } => {
+                    return Key::D;
+                },
+                Event::KeyDown { keycode: Some(Keycode::C), .. } => {
+                    return Key::E;
+                },
+                Event::KeyDown { keycode: Some(Keycode::V), .. } => {
+                    return Key::F;
+                },
+                _ => {},
+            }
+        }
     }
 }

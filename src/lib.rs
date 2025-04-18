@@ -1,3 +1,5 @@
+#![feature(macro_metavar_expr)]
+
 mod timer;
 mod memory;
 mod instructions;
@@ -21,11 +23,7 @@ use timer::Timer;
 use memory::Memory;
 use instructions::Instruction;
 use peripherals::{
-    Display, DisplaySettings, DisplayEngine,
-    sdl3::SDL3Display,
-    Audio,
-    Input,
-    PeripheralEvent,
+    sdl3::{SDL3Input, SDL3Display}, Audio, Display, DisplayEngine, DisplaySettings, Input, InputEngine, InputSettings, PeripheralEvent
 };
 
 macro_rules! display_index {
@@ -47,12 +45,14 @@ pub struct Settings {
     pub font: [u8; 80],
     // Display configuration
     pub display: DisplaySettings,
+    // Input configuration
+    pub input: InputSettings,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            clock_speed: 700,
+            clock_speed: 600,
             // 4kB
             memory_length: 0x1000, 
             // Rom is typically loaded at 0x200 for compatibility with old CHIP-8 programs. Where
@@ -78,6 +78,7 @@ impl Default for Settings {
                 0xF0, 0x80, 0xF0, 0x80, 0x80, // F
             ],
             display: DisplaySettings::default(),
+            input: InputSettings::default(),
         }
     }
 }
@@ -85,8 +86,8 @@ impl Default for Settings {
 pub struct ChipEight {
     // General configuration
     settings: Settings,
-    // Stack containing 16-bit addressess used to call/return from functions and subroutines.
-    stack: Vec<u16>,
+    // Stack containing addressess used to call/return from functions and subroutines.
+    stack: Vec<usize>,
     // Program counter which points to the current instruction in memory.
     pc: usize,
     // 16 8-bit general purpose variable registers.
@@ -103,8 +104,8 @@ pub struct ChipEight {
     memory: Memory,
     // MPSC receiver for interface events
     peripheral_rx: Receiver<PeripheralEvent>,
-    // Internal display buffer
-    display_buffer: Vec<bool>,
+    // Internal frame buffer
+    frame_buffer: Vec<bool>,
 
     // Peripheral interfaces
     display: Option<Box<dyn Display>>,
@@ -129,7 +130,7 @@ impl ChipEightBuilder {
         let display: Option<Box<dyn Display>> = if let Some(engine) = &settings.display.engine {
             match engine {
                 DisplayEngine::SDL3 => {
-                    match sdl_context {
+                    match &sdl_context {
                         Some(context) => {
                             let video_subsystem = context.video().unwrap();
                             Some(Box::new(SDL3Display::new(video_subsystem, settings.display.clone())))
@@ -147,6 +148,27 @@ impl ChipEightBuilder {
             None
         };
 
+        let input: Option<Box<dyn Input>> = if let Some(engine) = &settings.input.engine {
+            match engine {
+                InputEngine::SDL3 => {
+                    match &sdl_context {
+                        Some(context) => {
+                            let event_pump = context.event_pump().unwrap();
+                            Some(Box::new(SDL3Input::new(event_pump)))
+                        },
+                        None => {
+                            let context = sdl3::init().unwrap();
+                            let event_pump = context.event_pump().unwrap();
+                            sdl_context = Some(context);
+                            Some(Box::new(SDL3Input::new(event_pump)))
+                        }
+                    }
+                }
+            }
+        } else {
+            None
+        };
+
         ChipEight {
             stack: Vec::new(),
             pc: settings.program_addr, 
@@ -156,10 +178,10 @@ impl ChipEightBuilder {
             sound: Timer::new(Some(peripheral_tx.clone())),
             memory: Memory::new(settings.memory_length),
             peripheral_rx,
-            display_buffer: vec![false; settings.display.width * settings.display.height],
+            frame_buffer: vec![false; settings.display.width * settings.display.height],
             display,
             audio: None,
-            input: None,
+            input,
             settings,
         }
     }
@@ -226,16 +248,20 @@ impl ChipEight {
             // Execute instruction
             match instruction {
                 Instruction::Clear => {
-                    self.display_buffer.fill(false);
+                    self.frame_buffer.fill(false);
 
                     if let Some(display) = &mut self.display {
                         display.clear();
                         display.render();
                     }
                 },
+                Instruction::Return => {
+                    self.pc = self.stack.pop()
+                        .expect("Failed to return from subroutine: stack is empty");
+                },
                 Instruction::Jump(addr) => self.pc = addr,
                 Instruction::Call(addr) => {
-                    self.stack.push(self.pc as u16);
+                    self.stack.push(self.pc);
                     self.pc = addr;
                 }
                 Instruction::IfVxEq(reg, val) => {
@@ -321,7 +347,7 @@ impl ChipEight {
                             let bit = (byte.reverse_bits() >> position) & 1;
 
                             if bit != 0 {
-                                if let Some(pixel) = self.display_buffer.get_mut(display_index!(
+                                if let Some(pixel) = self.frame_buffer.get_mut(display_index!(
                                     current_x,
                                     current_y,
                                     settings.width
@@ -352,7 +378,34 @@ impl ChipEight {
                         display.render();
                     }
                 },
+                Instruction::IfKeyPressed(reg) => {
+                    if let Some(input) = &mut self.input {
+                        let key = (self.v[reg] & 0xF).try_into()
+                            .expect("Failed to parse keycode in reg");
+
+                        if input.get_keys_down().contains(&key) {
+                            self.pc += 2;
+                        }
+                    }
+                },
+                Instruction::IfKeyNotPressed(reg) => {
+                    if let Some(input) = &mut self.input {
+                        let key = (self.v[reg] & 0xF).try_into()
+                            .expect("Failed to parse keycode in reg");
+
+                        if !(input.get_keys_down().contains(&key)) {
+                            self.pc += 2;
+                        }
+                    }
+                },
                 Instruction::SetVxToDelay(reg) => self.v[reg] = self.delay.get(),
+                Instruction::SetVxToKey(reg) => {
+                    if let Some(input) = &mut self.input {
+                        self.v[reg] = input.wait_for_key() as u8;
+                    } else {
+                        panic!("Attempt to wait for key press failed: no available input peripheral");
+                    }
+                },
                 Instruction::SetDelayToVx(reg) => self.delay.set(self.v[reg]),
                 Instruction::SetSoundToVx(reg) => self.sound.set(self.v[reg]),
                 Instruction::AddVxToI(reg) => self.i = self.i.wrapping_add(self.v[reg] as usize),
@@ -385,11 +438,10 @@ impl ChipEight {
                         self.v[index] = byte;
                     }
                 },
-                _ => todo!(),
             }
-        }
 
-        // Sleep to ensure roughly correct clock speed
-        thread::sleep(Duration::from_millis(1000 / self.settings.clock_speed));
+            // Sleep to ensure roughly correct clock speed
+            thread::sleep(Duration::from_millis(1000 / self.settings.clock_speed));
+        }
     }
 }

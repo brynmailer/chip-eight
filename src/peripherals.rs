@@ -5,6 +5,8 @@ pub enum PeripheralEvent {
     StopTone,
 }
 
+#[repr(u8)]
+#[derive(PartialEq, Debug)]
 pub enum Key {
     Zero,
     One,
@@ -22,6 +24,30 @@ pub enum Key {
     D,
     E,
     F,
+}
+
+macro_rules! u8_to_key {
+    ($val:ident; $($key:ident),+) => (
+        match $val {
+            $(${index()} => Ok(Key::$key)),+,
+            _ => Err(KeyError),
+        }
+    )
+}
+
+#[derive(Debug)]
+pub struct KeyError;
+
+impl TryFrom<u8> for Key {
+    type Error = KeyError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        u8_to_key!(
+            value;
+            Zero, One, Two, Three, Four, Five, Six,
+            Seven, Eight, Nine, A, B, C, D, E, F
+        )
+    }
 }
 
 #[derive(Clone)]
@@ -81,7 +107,26 @@ pub trait Audio {
     fn stop_tone(&self);
 }
 
+#[derive(Clone)]
+pub enum InputEngine {
+    SDL3,
+}
+
+#[derive(Clone)]
+pub struct InputSettings {
+    pub engine: Option<InputEngine>,
+}
+
+impl Default for InputSettings {
+    fn default() -> Self {
+        Self {
+            engine: Some(InputEngine::SDL3),
+        }
+    }
+}
+
 pub trait Input {
-    fn get_keys_down(&self) -> Vec<Key>;
+    fn get_keys_down(&mut self) -> Vec<Key>;
+    fn wait_for_key(&mut self) -> Key;
 }
 
