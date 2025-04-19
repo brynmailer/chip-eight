@@ -23,7 +23,7 @@ use timer::Timer;
 use memory::Memory;
 use instructions::Instruction;
 use peripherals::{
-    sdl3::{SDL3Input, SDL3Display}, Audio, Display, DisplayEngine, DisplaySettings, Input, InputEngine, InputSettings, PeripheralEvent
+    sdl3::{SDL3Display, SDL3Input}, Audio, Display, DisplayEngine, DisplaySettings, Input, InputEngine, InputSettings, Key, PeripheralEvent
 };
 
 macro_rules! display_index {
@@ -153,14 +153,14 @@ impl ChipEightBuilder {
                 InputEngine::SDL3 => {
                     match &sdl_context {
                         Some(context) => {
-                            let event_pump = context.event_pump().unwrap();
-                            Some(Box::new(SDL3Input::new(event_pump)))
+                            let event_subsystem = context.event().unwrap();
+                            Some(Box::new(SDL3Input::new(event_subsystem)))
                         },
                         None => {
                             let context = sdl3::init().unwrap();
-                            let event_pump = context.event_pump().unwrap();
+                            let event_subsystem = context.event().unwrap();
                             sdl_context = Some(context);
-                            Some(Box::new(SDL3Input::new(event_pump)))
+                            Some(Box::new(SDL3Input::new(event_subsystem)))
                         }
                     }
                 }
@@ -230,6 +230,12 @@ impl ChipEight {
                     },
                 }
             }
+
+            let keys_pressed = if let Some(input) = &mut self.input {
+                input.get_keys_down()
+            } else {
+                vec![]
+            };
 
             // Fetch and decode current instruction
             let parts = self.memory.read_buf(self.pc, 2).unwrap_or_else(|error| {
@@ -379,23 +385,19 @@ impl ChipEight {
                     }
                 },
                 Instruction::IfKeyPressed(reg) => {
-                    if let Some(input) = &mut self.input {
-                        let key = (self.v[reg] & 0xF).try_into()
-                            .expect("Failed to parse keycode in reg");
+                    let key = (self.v[reg] & 0xF).try_into()
+                        .expect("Failed to parse keycode in reg");
 
-                        if input.get_keys_down().contains(&key) {
-                            self.pc += 2;
-                        }
+                    if keys_pressed.contains(&key) {
+                        self.pc += 2;
                     }
                 },
                 Instruction::IfKeyNotPressed(reg) => {
-                    if let Some(input) = &mut self.input {
-                        let key = (self.v[reg] & 0xF).try_into()
-                            .expect("Failed to parse keycode in reg");
+                    let key = (self.v[reg] & 0xF).try_into()
+                        .expect("Failed to parse keycode in reg");
 
-                        if !(input.get_keys_down().contains(&key)) {
-                            self.pc += 2;
-                        }
+                    if !keys_pressed.contains(&key) {
+                        self.pc += 2;
                     }
                 },
                 Instruction::SetVxToDelay(reg) => self.v[reg] = self.delay.get(),

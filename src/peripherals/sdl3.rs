@@ -1,5 +1,10 @@
+use std::{
+    sync::{Arc, RwLock},
+    thread,
+};
+
 use sdl3::{
-    event::Event, keyboard::Keycode, pixels::Color, render::{FRect, WindowCanvas}, EventPump, VideoSubsystem
+    event::{Event, EventWatch, EventWatchCallback}, keyboard::Keycode, pixels::Color, render::{FRect, WindowCanvas}, EventPump, EventSubsystem, VideoSubsystem
 };
 
 use super::{Display, DisplaySettings, Input, Key};
@@ -63,35 +68,58 @@ impl Display for SDL3Display {
     }
 }
 
-pub struct SDL3Input {
-    event_pump: EventPump,
-}
+struct InputEventCallback;
 
-impl SDL3Input {
-    pub fn new(event_pump: EventPump) -> Self {
-        Self {
-            event_pump,
+impl EventWatchCallback for InputEventCallback {
+    fn callback(&mut self, event: Event) {
+        match event {
+            Event::KeyDown { scancode, ..} => {
+                println!("{scancode:?} down");
+            },
+            Event::KeyUp { scancode, ..} => {
+                println!("{scancode:?} up");
+            },
+            _ => {},
         }
     }
 }
 
-impl Input for SDL3Input {
+pub struct SDL3Input<'a> {
+    keys_pressed: Arc<RwLock<Vec<Key>>>,
+    event_watch: EventWatch<'a, InputEventCallback>,
+}
+
+impl<'a> SDL3Input<'a> {
+    pub fn new(event_subsystem: EventSubsystem) -> Self {
+        let keys_pressed = Arc::new(RwLock::new(vec![]));
+
+        let event_watch = event_subsystem.add_event_watch(InputEventCallback);
+
+        Self {
+            keys_pressed,
+            event_watch,
+        }
+    }
+}
+
+impl<'a> Input for SDL3Input<'a> {
     fn get_keys_down(&mut self) -> Vec<Key> {
         let mut keys: Vec<Key> = vec![];
 
+        /*
         for event in self.event_pump.poll_iter() {
             match event {
                 Event::KeyDown { keycode: Some(Keycode::_1), .. } => {
-                    keys.push(Key::Zero);
-                },
-                Event::KeyDown { keycode: Some(Keycode::_2), .. } => {
                     keys.push(Key::One);
                 },
-                Event::KeyDown { keycode: Some(Keycode::_3), .. } => {
+                Event::KeyDown { keycode: Some(Keycode::_2), .. } => {
                     keys.push(Key::Two);
                 },
-                Event::KeyDown { keycode: Some(Keycode::_4), .. } => {
+                Event::KeyDown { keycode: Some(Keycode::_3), .. } => {
                     keys.push(Key::Three);
+                },
+                Event::KeyDown { keycode: Some(Keycode::_4), .. } => {
+                    keys.push(Key::C);
                 },
                 Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
                     keys.push(Key::Four);
@@ -103,28 +131,28 @@ impl Input for SDL3Input {
                     keys.push(Key::Six);
                 },
                 Event::KeyDown { keycode: Some(Keycode::R), .. } => {
-                    keys.push(Key::Seven);
-                },
-                Event::KeyDown { keycode: Some(Keycode::A), .. } => {
-                    keys.push(Key::Eight);
-                },
-                Event::KeyDown { keycode: Some(Keycode::S), .. } => {
-                    keys.push(Key::Nine);
-                },
-                Event::KeyDown { keycode: Some(Keycode::D), .. } => {
-                    keys.push(Key::A);
-                },
-                Event::KeyDown { keycode: Some(Keycode::F), .. } => {
-                    keys.push(Key::B);
-                },
-                Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
-                    keys.push(Key::C);
-                },
-                Event::KeyDown { keycode: Some(Keycode::X), .. } => {
                     keys.push(Key::D);
                 },
-                Event::KeyDown { keycode: Some(Keycode::C), .. } => {
+                Event::KeyDown { keycode: Some(Keycode::A), .. } => {
+                    keys.push(Key::Seven);
+                },
+                Event::KeyDown { keycode: Some(Keycode::S), .. } => {
+                    keys.push(Key::Eight);
+                },
+                Event::KeyDown { keycode: Some(Keycode::D), .. } => {
+                    keys.push(Key::Nine);
+                },
+                Event::KeyDown { keycode: Some(Keycode::F), .. } => {
                     keys.push(Key::E);
+                },
+                Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
+                    keys.push(Key::A);
+                },
+                Event::KeyDown { keycode: Some(Keycode::X), .. } => {
+                    keys.push(Key::Zero);
+                },
+                Event::KeyDown { keycode: Some(Keycode::C), .. } => {
+                    keys.push(Key::B);
                 },
                 Event::KeyDown { keycode: Some(Keycode::V), .. } => {
                     keys.push(Key::F);
@@ -132,26 +160,28 @@ impl Input for SDL3Input {
                 _ => {},
             }
         }
+        */
 
         keys
     }
 
     fn wait_for_key(&mut self) -> Key {
+        /*
         loop {
             let event = self.event_pump.wait_event();
 
             match event {
                 Event::KeyDown { keycode: Some(Keycode::_1), .. } => {
-                    return Key::Zero;
-                },
-                Event::KeyDown { keycode: Some(Keycode::_2), .. } => {
                     return Key::One;
                 },
-                Event::KeyDown { keycode: Some(Keycode::_3), .. } => {
+                Event::KeyDown { keycode: Some(Keycode::_2), .. } => {
                     return Key::Two;
                 },
-                Event::KeyDown { keycode: Some(Keycode::_4), .. } => {
+                Event::KeyDown { keycode: Some(Keycode::_3), .. } => {
                     return Key::Three;
+                },
+                Event::KeyDown { keycode: Some(Keycode::_4), .. } => {
+                    return Key::C;
                 },
                 Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
                     return Key::Four;
@@ -163,28 +193,28 @@ impl Input for SDL3Input {
                     return Key::Six;
                 },
                 Event::KeyDown { keycode: Some(Keycode::R), .. } => {
-                    return Key::Seven;
-                },
-                Event::KeyDown { keycode: Some(Keycode::A), .. } => {
-                    return Key::Eight;
-                },
-                Event::KeyDown { keycode: Some(Keycode::S), .. } => {
-                    return Key::Nine;
-                },
-                Event::KeyDown { keycode: Some(Keycode::D), .. } => {
-                    return Key::A;
-                },
-                Event::KeyDown { keycode: Some(Keycode::F), .. } => {
-                    return Key::B;
-                },
-                Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
-                    return Key::C;
-                },
-                Event::KeyDown { keycode: Some(Keycode::X), .. } => {
                     return Key::D;
                 },
-                Event::KeyDown { keycode: Some(Keycode::C), .. } => {
+                Event::KeyDown { keycode: Some(Keycode::A), .. } => {
+                    return Key::Seven;
+                },
+                Event::KeyDown { keycode: Some(Keycode::S), .. } => {
+                    return Key::Eight;
+                },
+                Event::KeyDown { keycode: Some(Keycode::D), .. } => {
+                    return Key::Nine;
+                },
+                Event::KeyDown { keycode: Some(Keycode::F), .. } => {
                     return Key::E;
+                },
+                Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
+                    return Key::A;
+                },
+                Event::KeyDown { keycode: Some(Keycode::X), .. } => {
+                    return Key::Zero;
+                },
+                Event::KeyDown { keycode: Some(Keycode::C), .. } => {
+                    return Key::B;
                 },
                 Event::KeyDown { keycode: Some(Keycode::V), .. } => {
                     return Key::F;
@@ -192,5 +222,7 @@ impl Input for SDL3Input {
                 _ => {},
             }
         }
+        */
+        return Key::Zero;
     }
 }
