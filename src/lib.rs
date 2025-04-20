@@ -23,7 +23,7 @@ use timer::Timer;
 use memory::Memory;
 use instructions::Instruction;
 use peripherals::{
-    sdl3::{SDL3Display, SDL3Input}, Audio, Display, DisplayEngine, DisplaySettings, Input, InputEngine, InputSettings, Key, PeripheralEvent
+    sdl3::{SDL3Display, SDL3Input}, Audio, Display, DisplayEngine, DisplaySettings, Input, InputEngine, InputSettings, PeripheralEvent
 };
 
 macro_rules! display_index {
@@ -153,14 +153,14 @@ impl ChipEightBuilder {
                 InputEngine::SDL3 => {
                     match &sdl_context {
                         Some(context) => {
-                            let event_subsystem = context.event().unwrap();
-                            Some(Box::new(SDL3Input::new(event_subsystem)))
+                            let event_pump = context.event_pump().unwrap();
+                            Some(Box::new(SDL3Input::new(event_pump)))
                         },
                         None => {
                             let context = sdl3::init().unwrap();
-                            let event_subsystem = context.event().unwrap();
+                            let event_pump = context.event_pump().unwrap();
                             sdl_context = Some(context);
-                            Some(Box::new(SDL3Input::new(event_subsystem)))
+                            Some(Box::new(SDL3Input::new(event_pump)))
                         }
                     }
                 }
@@ -218,6 +218,8 @@ impl ChipEight {
             panic!("Failed to load rom: {}", error);
         });
 
+        let default_keys_pressed = [false; 16];
+
         while running.load(Ordering::SeqCst) {
             // Handle interface events
             if let Ok(event) = self.peripheral_rx.try_recv() {
@@ -234,7 +236,7 @@ impl ChipEight {
             let keys_pressed = if let Some(input) = &mut self.input {
                 input.get_keys_down()
             } else {
-                vec![]
+                &default_keys_pressed
             };
 
             // Fetch and decode current instruction
@@ -385,25 +387,23 @@ impl ChipEight {
                     }
                 },
                 Instruction::IfKeyPressed(reg) => {
-                    let key = (self.v[reg] & 0xF).try_into()
-                        .expect("Failed to parse keycode in reg");
+                    let key = self.v[reg] & 0xF;
 
-                    if keys_pressed.contains(&key) {
+                    if keys_pressed[key as usize] {
                         self.pc += 2;
                     }
                 },
                 Instruction::IfKeyNotPressed(reg) => {
-                    let key = (self.v[reg] & 0xF).try_into()
-                        .expect("Failed to parse keycode in reg");
+                    let key = self.v[reg] & 0xF;
 
-                    if !keys_pressed.contains(&key) {
+                    if !keys_pressed[key as usize] {
                         self.pc += 2;
                     }
                 },
                 Instruction::SetVxToDelay(reg) => self.v[reg] = self.delay.get(),
                 Instruction::SetVxToKey(reg) => {
                     if let Some(input) = &mut self.input {
-                        self.v[reg] = input.wait_for_key() as u8;
+                        self.v[reg] = input.wait_for_key(running.clone());
                     } else {
                         panic!("Attempt to wait for key press failed: no available input peripheral");
                     }

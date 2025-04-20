@@ -1,13 +1,10 @@
-use std::{
-    sync::{Arc, RwLock},
-    thread,
-};
+use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 
 use sdl3::{
-    event::{Event, EventWatch, EventWatchCallback}, keyboard::Keycode, pixels::Color, render::{FRect, WindowCanvas}, EventPump, EventSubsystem, VideoSubsystem
+    event::Event, keyboard::Keycode, pixels::Color, render::{FRect, WindowCanvas}, EventPump, VideoSubsystem
 };
 
-use super::{Display, DisplaySettings, Input, Key};
+use super::{Display, DisplaySettings, Input};
 
 macro_rules! color {
     ($config:expr, $index:tt) => {
@@ -68,161 +65,185 @@ impl Display for SDL3Display {
     }
 }
 
-struct InputEventCallback;
-
-impl EventWatchCallback for InputEventCallback {
-    fn callback(&mut self, event: Event) {
-        match event {
-            Event::KeyDown { scancode, ..} => {
-                println!("{scancode:?} down");
-            },
-            Event::KeyUp { scancode, ..} => {
-                println!("{scancode:?} up");
-            },
-            _ => {},
-        }
-    }
+pub struct SDL3Input {
+    event_pump: EventPump,
+    keys_pressed: [bool; 16],
 }
 
-pub struct SDL3Input<'a> {
-    keys_pressed: Arc<RwLock<Vec<Key>>>,
-    event_watch: EventWatch<'a, InputEventCallback>,
-}
-
-impl<'a> SDL3Input<'a> {
-    pub fn new(event_subsystem: EventSubsystem) -> Self {
-        let keys_pressed = Arc::new(RwLock::new(vec![]));
-
-        let event_watch = event_subsystem.add_event_watch(InputEventCallback);
-
+impl SDL3Input {
+    pub fn new(event_pump: EventPump) -> Self {
         Self {
-            keys_pressed,
-            event_watch,
+            event_pump,
+            keys_pressed: [false; 16],
         }
     }
 }
 
-impl<'a> Input for SDL3Input<'a> {
-    fn get_keys_down(&mut self) -> Vec<Key> {
-        let mut keys: Vec<Key> = vec![];
-
-        /*
+impl Input for SDL3Input {
+    fn get_keys_down(&mut self) -> &[bool; 16] {
         for event in self.event_pump.poll_iter() {
             match event {
                 Event::KeyDown { keycode: Some(Keycode::_1), .. } => {
-                    keys.push(Key::One);
+                    self.keys_pressed[0x1] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::_2), .. } => {
-                    keys.push(Key::Two);
+                    self.keys_pressed[0x2] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::_3), .. } => {
-                    keys.push(Key::Three);
+                    self.keys_pressed[0x3] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::_4), .. } => {
-                    keys.push(Key::C);
+                    self.keys_pressed[0xC] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
-                    keys.push(Key::Four);
+                    self.keys_pressed[0x4] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::W), .. } => {
-                    keys.push(Key::Five);
+                    self.keys_pressed[0x5] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::E), .. } => {
-                    keys.push(Key::Six);
+                    self.keys_pressed[0x6] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::R), .. } => {
-                    keys.push(Key::D);
+                    self.keys_pressed[0xD] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::A), .. } => {
-                    keys.push(Key::Seven);
+                    self.keys_pressed[0x7] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::S), .. } => {
-                    keys.push(Key::Eight);
+                    self.keys_pressed[0x8] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::D), .. } => {
-                    keys.push(Key::Nine);
+                    self.keys_pressed[0x9] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::F), .. } => {
-                    keys.push(Key::E);
+                    self.keys_pressed[0xE] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
-                    keys.push(Key::A);
+                    self.keys_pressed[0xA] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::X), .. } => {
-                    keys.push(Key::Zero);
+                    self.keys_pressed[0x0] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::C), .. } => {
-                    keys.push(Key::B);
+                    self.keys_pressed[0xB] = true;
                 },
                 Event::KeyDown { keycode: Some(Keycode::V), .. } => {
-                    keys.push(Key::F);
+                    self.keys_pressed[0xF] = true;
+                },
+
+                Event::KeyUp { keycode: Some(Keycode::_1), .. } => {
+                    self.keys_pressed[0x1] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::_2), .. } => {
+                    self.keys_pressed[0x2] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::_3), .. } => {
+                    self.keys_pressed[0x3] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::_4), .. } => {
+                    self.keys_pressed[0xC] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::Q), .. } => {
+                    self.keys_pressed[0x4] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::W), .. } => {
+                    self.keys_pressed[0x5] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::E), .. } => {
+                    self.keys_pressed[0x6] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::R), .. } => {
+                    self.keys_pressed[0xD] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::A), .. } => {
+                    self.keys_pressed[0x7] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::S), .. } => {
+                    self.keys_pressed[0x8] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::D), .. } => {
+                    self.keys_pressed[0x9] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::F), .. } => {
+                    self.keys_pressed[0xE] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::Z), .. } => {
+                    self.keys_pressed[0xA] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::X), .. } => {
+                    self.keys_pressed[0x0] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::C), .. } => {
+                    self.keys_pressed[0xB] = false;
+                },
+                Event::KeyUp { keycode: Some(Keycode::V), .. } => {
+                    self.keys_pressed[0xF] = false;
                 },
                 _ => {},
             }
         }
-        */
 
-        keys
+        &self.keys_pressed
     }
 
-    fn wait_for_key(&mut self) -> Key {
-        /*
-        loop {
-            let event = self.event_pump.wait_event();
-
-            match event {
-                Event::KeyDown { keycode: Some(Keycode::_1), .. } => {
-                    return Key::One;
-                },
-                Event::KeyDown { keycode: Some(Keycode::_2), .. } => {
-                    return Key::Two;
-                },
-                Event::KeyDown { keycode: Some(Keycode::_3), .. } => {
-                    return Key::Three;
-                },
-                Event::KeyDown { keycode: Some(Keycode::_4), .. } => {
-                    return Key::C;
-                },
-                Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
-                    return Key::Four;
-                },
-                Event::KeyDown { keycode: Some(Keycode::W), .. } => {
-                    return Key::Five;
-                },
-                Event::KeyDown { keycode: Some(Keycode::E), .. } => {
-                    return Key::Six;
-                },
-                Event::KeyDown { keycode: Some(Keycode::R), .. } => {
-                    return Key::D;
-                },
-                Event::KeyDown { keycode: Some(Keycode::A), .. } => {
-                    return Key::Seven;
-                },
-                Event::KeyDown { keycode: Some(Keycode::S), .. } => {
-                    return Key::Eight;
-                },
-                Event::KeyDown { keycode: Some(Keycode::D), .. } => {
-                    return Key::Nine;
-                },
-                Event::KeyDown { keycode: Some(Keycode::F), .. } => {
-                    return Key::E;
-                },
-                Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
-                    return Key::A;
-                },
-                Event::KeyDown { keycode: Some(Keycode::X), .. } => {
-                    return Key::Zero;
-                },
-                Event::KeyDown { keycode: Some(Keycode::C), .. } => {
-                    return Key::B;
-                },
-                Event::KeyDown { keycode: Some(Keycode::V), .. } => {
-                    return Key::F;
-                },
-                _ => {},
+    fn wait_for_key(&mut self, running: Arc<AtomicBool>) -> u8 {
+        while running.load(Ordering::SeqCst) {
+            if let Some(event) = self.event_pump.wait_event_timeout(1000 / 700) {
+                match event {
+                    Event::KeyDown { keycode: Some(Keycode::_1), .. } => {
+                        return 1;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::_2), .. } => {
+                        return 2;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::_3), .. } => {
+                        return 3;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::_4), .. } => {
+                        return 0xC;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::Q), .. } => {
+                        return 4;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::W), .. } => {
+                        return 5;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::E), .. } => {
+                        return 6;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::R), .. } => {
+                        return 0xD;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::A), .. } => {
+                        return 7;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::S), .. } => {
+                        return 8;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::D), .. } => {
+                        return 9;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::F), .. } => {
+                        return 0xE;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::Z), .. } => {
+                        return 0xA;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::X), .. } => {
+                        return 0;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::C), .. } => {
+                        return 0xB;
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::V), .. } => {
+                        return 0xF;
+                    },
+                    _ => {},
+                }
             }
         }
-        */
-        return Key::Zero;
+
+        0
     }
 }
