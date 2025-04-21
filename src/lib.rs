@@ -314,9 +314,18 @@ impl ChipEight {
                 Instruction::SetVx(reg, val) => self.v[reg] = val,
                 Instruction::AddToVx(reg, val) => self.v[reg] = self.v[reg].wrapping_add(val),
                 Instruction::SetVxToVy(reg_x, reg_y) => self.v[reg_x] = self.v[reg_y],
-                Instruction::SetVxOrVy(reg_x, reg_y) => self.v[reg_x] |= self.v[reg_y],
-                Instruction::SetVxAndVy(reg_x, reg_y) => self.v[reg_x] &= self.v[reg_y],
-                Instruction::SetVxXorVy(reg_x, reg_y) => self.v[reg_x] ^= self.v[reg_y],
+                Instruction::SetVxOrVy(reg_x, reg_y) => {
+                    self.v[reg_x] |= self.v[reg_y];
+                    self.v[0xF] = 0;
+                },
+                Instruction::SetVxAndVy(reg_x, reg_y) => {
+                    self.v[reg_x] &= self.v[reg_y];
+                    self.v[0xF] = 0;
+                },
+                Instruction::SetVxXorVy(reg_x, reg_y) => {
+                    self.v[reg_x] ^= self.v[reg_y];
+                    self.v[0xF] = 0;
+                },
                 Instruction::AddVyToVx(reg_x, reg_y) => {
                     let (result, overflowed) = self.v[reg_x].overflowing_add(self.v[reg_y]);
                     self.v[reg_x] = result;
