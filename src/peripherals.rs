@@ -59,6 +59,24 @@ pub trait Display {
     fn render(&mut self);
 }
 
+#[derive(Clone)]
+pub enum AudioEngine {
+    SDL3,
+}
+
+#[derive(Clone)]
+pub struct AudioSettings {
+    pub engine: Option<AudioEngine>,
+}
+
+impl Default for AudioSettings {
+    fn default() -> Self {
+        Self {
+            engine: Some(AudioEngine::SDL3),
+        }
+    }
+}
+
 pub trait Audio {
     fn play_tone(&self);
     fn stop_tone(&self);

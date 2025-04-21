@@ -1,10 +1,10 @@
 use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 
 use sdl3::{
-    event::Event, keyboard::Keycode, pixels::Color, render::{FRect, WindowCanvas}, EventPump, VideoSubsystem
+    audio::{AudioCallback, AudioFormat, AudioSpec, AudioStream, AudioStreamWithCallback}, event::Event, keyboard::Keycode, pixels::Color, render::{FRect, WindowCanvas}, AudioSubsystem, EventPump, VideoSubsystem
 };
 
-use super::{Display, DisplaySettings, Input};
+use super::{Audio, Display, DisplaySettings, Input};
 
 macro_rules! color {
     ($config:expr, $index:tt) => {
@@ -245,5 +245,67 @@ impl Input for SDL3Input {
         }
 
         0
+    }
+}
+
+struct SquareWave {
+    phase_inc: f32,
+    phase: f32,
+    volume: f32
+}
+
+impl AudioCallback<f32> for SquareWave {
+    fn callback(&mut self, stream: &mut AudioStream, len: i32) {
+        let mut out = vec![0.0; len as usize];
+
+        // Generate a square wave
+        for x in out.iter_mut() {
+            *x = if self.phase <= 0.5 {
+                self.volume
+            } else {
+                -self.volume
+            };
+            self.phase = (self.phase + self.phase_inc) % 1.0;
+        }
+
+        stream.put_data_f32(&out)
+            .expect("Failed to push samples to audio stream");
+    }
+}
+
+pub struct SDL3Audio {
+    device: AudioStreamWithCallback<SquareWave>,
+}
+
+impl SDL3Audio {
+    pub fn new(audio_subsystem: AudioSubsystem) -> Self {
+        let source_freq = 44100;
+        let source_spec = AudioSpec {
+            freq: Some(source_freq),
+            channels: Some(1),                      // mono
+            format: Some(AudioFormat::f32_sys())    // floating 32 bit samples
+        };
+
+        let device = audio_subsystem.open_playback_stream(&source_spec, SquareWave {
+            phase_inc: 440.0 / source_freq as f32,
+            phase: 0.0,
+            volume: 0.03,
+        }).unwrap();
+
+        Self {
+            device,
+        }
+    }
+}
+
+impl Audio for SDL3Audio {
+    fn play_tone(&self) {
+        self.device.resume()
+            .expect("Failed to play audio");
+    }
+
+    fn stop_tone(&self) {
+        self.device.pause()
+            .expect("Failed to stop audio");
     }
 }

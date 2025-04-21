@@ -23,7 +23,7 @@ use timer::Timer;
 use memory::Memory;
 use instructions::Instruction;
 use peripherals::{
-    sdl3::{SDL3Display, SDL3Input}, Audio, Display, DisplayEngine, DisplaySettings, Input, InputEngine, InputSettings, PeripheralEvent
+    sdl3::{SDL3Audio, SDL3Display, SDL3Input}, Audio, AudioEngine, AudioSettings, Display, DisplayEngine, DisplaySettings, Input, InputEngine, InputSettings, PeripheralEvent
 };
 
 macro_rules! display_index {
@@ -45,6 +45,8 @@ pub struct Settings {
     pub font: [u8; 80],
     // Display configuration
     pub display: DisplaySettings,
+    // Audio configuration
+    pub audio: AudioSettings,
     // Input configuration
     pub input: InputSettings,
 }
@@ -78,6 +80,7 @@ impl Default for Settings {
                 0xF0, 0x80, 0xF0, 0x80, 0x80, // F
             ],
             display: DisplaySettings::default(),
+            audio: AudioSettings::default(),
             input: InputSettings::default(),
         }
     }
@@ -169,6 +172,27 @@ impl ChipEightBuilder {
             None
         };
 
+        let audio: Option<Box<dyn Audio>> = if let Some(engine) = &settings.audio.engine {
+            match engine {
+                AudioEngine::SDL3 => {
+                    match &sdl_context {
+                        Some(context) => {
+                            let audio_subsystem = context.audio().unwrap();
+                            Some(Box::new(SDL3Audio::new(audio_subsystem)))
+                        },
+                        None => {
+                            let context = sdl3::init().unwrap();
+                            let audio_subsystem = context.audio().unwrap();
+                            sdl_context = Some(context);
+                            Some(Box::new(SDL3Audio::new(audio_subsystem)))
+                        }
+                    }
+                }
+            }
+        } else {
+            None
+        };
+
         ChipEight {
             stack: Vec::new(),
             pc: settings.program_addr, 
@@ -180,7 +204,7 @@ impl ChipEightBuilder {
             peripheral_rx,
             frame_buffer: vec![false; settings.display.width * settings.display.height],
             display,
-            audio: None,
+            audio,
             input,
             settings,
         }
