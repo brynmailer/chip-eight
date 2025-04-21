@@ -327,18 +327,20 @@ impl ChipEight {
                     self.v[reg_x] = result;
                     self.v[0xF] = (!overflowed).into();
                 },
-                Instruction::RightShiftVx(reg) => {
-                    self.v[0xF] = self.v[reg] & 1;
-                    self.v[reg] >>= 1;
+                Instruction::RightShiftVx(reg_x, reg_y) => {
+                    let bit = self.v[reg_y] & 1;
+                    self.v[reg_x] = self.v[reg_y] >> 1;
+                    self.v[0xF] = bit;
                 },
                 Instruction::SubVxFromVy(reg_x, reg_y) => {
                     let (result, overflowed) = self.v[reg_y].overflowing_sub(self.v[reg_x]);
                     self.v[reg_x] = result;
                     self.v[0xF] = (!overflowed).into();
                 },
-                Instruction::LeftShiftVx(reg) => {
-                    self.v[0xF] = (self.v[reg] >> 7) & 1;
-                    self.v[reg] <<= 1;
+                Instruction::LeftShiftVx(reg_x, reg_y) => {
+                    let bit = (self.v[reg_y] >> 7) & 1;
+                    self.v[reg_x] = self.v[reg_y] << 1;
+                    self.v[0xF] = bit;
                 },
                 Instruction::IfVxNotEqVy(reg_x, reg_y) => {
                     if self.v[reg_x] != self.v[reg_y] {
