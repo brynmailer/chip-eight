@@ -2,7 +2,7 @@
 
 My attempt at a Chip-8 emulator, in rust.
 
-CHIP-8 is a simple, interpreted programming language that was developed in the mid-1970s by Joseph Weisbecker to make video game programming more accessible on microcomputers of that era. It's not actually a physical chip but rather a virtual machine designed to run games and simple graphics applications with minimal hardware requirements. See more [here](https://en.wikipedia.org/wiki/CHIP-8)
+CHIP-8 is a simple, interpreted programming language that was developed in the mid-1970s by Joseph Weisbecker to make video game programming more accessible on microcomputers of that era. It's not actually a physical chip but rather a virtual machine designed to run games and simple graphics applications with minimal hardware requirements. More information [here](https://en.wikipedia.org/wiki/CHIP-8).
 
 Features include:
 - Full support for all instructions and quirks from the original Chip-8. As well as the modern Super-Chip, and XO-Chip extensions.
@@ -23,7 +23,8 @@ Disclaimer: I work entirely on Linux, and have not tested this project on other 
 ### Prerequisites
 
 This project requires SDL3. The `sdl3` crate (rust bindings for SDL3) exposes a number of configurable options to resolve this dependency, all of which are accessible via the corresponding `features` flags in `Cargo.toml`. I have it configured to build from source for personal convenience.
-_For more information, please refer to the `sdl3` crates [Documentation](https://github.com/maia-s/sdl3-sys-rs/tree/main/sdl3-sys#usage)_
+
+_For more details, please refer to the `sdl3` crate [documentation](https://github.com/maia-s/sdl3-sys-rs/tree/main/sdl3-sys#usage)_
 
 ### Installation
 
