@@ -1,20 +1,4 @@
-use std::sync::{atomic::AtomicBool, Arc};
-
-pub mod sdl3;
-
-pub enum PeripheralEvent {
-    PlayTone,
-    StopTone,
-}
-
-#[derive(Clone)]
-pub enum DisplayEngine {
-    SDL3,
-}
-
-#[derive(Clone)]
 pub struct DisplaySettings {
-    pub engine: Option<DisplayEngine>,
     // Width/height in virtual pixels
     pub width: usize,
     pub height: usize,
@@ -39,7 +23,6 @@ impl DisplaySettings {
 impl Default for DisplaySettings {
     fn default() -> Self {
         Self {
-            engine: Some(DisplayEngine::SDL3),
             width: 64,
             height: 32,
             scale_factor: 20,
@@ -53,55 +36,21 @@ impl Default for DisplaySettings {
     }
 }
 
-pub trait Display {
-    fn clear(&mut self);
-    fn draw_pixel(&mut self, x: usize, y: usize, color: usize);
-    fn render(&mut self);
-}
-
-#[derive(Clone)]
-pub enum AudioEngine {
-    SDL3,
-}
-
-#[derive(Clone)]
-pub struct AudioSettings {
-    pub engine: Option<AudioEngine>,
-}
+pub struct AudioSettings {}
 
 impl Default for AudioSettings {
     fn default() -> Self {
-        Self {
-            engine: Some(AudioEngine::SDL3),
-        }
+        Self {}
     }
 }
 
-pub trait Audio {
-    fn play_tone(&self);
-    fn stop_tone(&self);
-}
-
-#[derive(Clone)]
-pub enum InputEngine {
-    SDL3,
-}
-
-#[derive(Clone)]
-pub struct InputSettings {
-    pub engine: Option<InputEngine>,
+pub struct InputSettings { 
+    pub keymap: [u8; 16],
 }
 
 impl Default for InputSettings {
     fn default() -> Self {
         Self {
-            engine: Some(InputEngine::SDL3),
         }
     }
 }
-
-pub trait Input {
-    fn get_keys_down(&mut self) -> &[bool; 16];
-    fn wait_for_key(&mut self, running: Arc<AtomicBool>) -> u8;
-}
-

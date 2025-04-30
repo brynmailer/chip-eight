@@ -1,14 +1,7 @@
-#![feature(macro_metavar_expr)]
-
-mod timer;
-mod memory;
-mod instructions;
-mod peripherals;
-
 use std::{
     sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc::{channel, Receiver},
+        mpmc,
+        atomic,
         Arc,
     },
     thread,
@@ -18,12 +11,16 @@ use std::{
 use ctrlc;
 use rand::{self, Rng};
 
-use sdl3::Sdl;
-use timer::Timer;
-use memory::Memory;
-use instructions::Instruction;
-use peripherals::{
-    sdl3::{SDL3Audio, SDL3Display, SDL3Input}, Audio, AudioEngine, AudioSettings, Display, DisplayEngine, DisplaySettings, Input, InputEngine, InputSettings, PeripheralEvent
+use crate::{
+    config::Config,
+    memory::Memory,
+    timer::Timer,
+    devices::{
+        DeviceEvent,
+        Display,
+        Audio,
+        Input,
+    },
 };
 
 macro_rules! display_index {
@@ -32,204 +29,76 @@ macro_rules! display_index {
     };
 }
 
-pub struct Settings {
-    // Number of instruction to process per second
-    pub clock_speed: u64,
-    // Size of memory in bytes
-    pub memory_length: usize,
-    // Memory address of the first intruction of the loaded program
-    pub program_addr: usize,
-    // Memory address of the first byte of the default font
-    pub font_addr: usize,
-    // Default font sprites
-    pub font: [u8; 80],
-    // Display configuration
-    pub display: DisplaySettings,
-    // Audio configuration
-    pub audio: AudioSettings,
-    // Input configuration
-    pub input: InputSettings,
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            clock_speed: 600,
-            // 4kB
-            memory_length: 0x1000, 
-            // Rom is typically loaded at 0x200 for compatibility with old CHIP-8 programs. Where
-            // the first 512 bytes of memory were kept free for the interpreter and font data.
-            program_addr: 0x200,
-            font_addr: 0x50,
-            font: [
-                0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
-                0x20, 0x60, 0x20, 0x20, 0x70, // 1
-                0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
-                0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
-                0x90, 0x90, 0xF0, 0x10, 0x10, // 4
-                0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-                0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
-                0xF0, 0x10, 0x20, 0x40, 0x40, // 7
-                0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
-                0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-                0xF0, 0x90, 0xF0, 0x90, 0x90, // A
-                0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
-                0xF0, 0x80, 0x80, 0x80, 0xF0, // C
-                0xE0, 0x90, 0x90, 0x90, 0xE0, // D
-                0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-                0xF0, 0x80, 0xF0, 0x80, 0x80, // F
-            ],
-            display: DisplaySettings::default(),
-            audio: AudioSettings::default(),
-            input: InputSettings::default(),
-        }
-    }
-}
-
 pub struct ChipEight {
     // General configuration
-    settings: Settings,
+    config: Config,
+
     // Stack containing addressess used to call/return from functions and subroutines.
     stack: Vec<usize>,
+
     // Program counter which points to the current instruction in memory.
     pc: usize,
+    
     // 16 8-bit general purpose variable registers.
     v: [u8; 16],
+
     // Index register to point at locations in memory.
     i: usize,
+
     // Delay timer which is decremented at a rate of 60 Hz until it reaches 0. Can
     // be set and read.
     delay: Timer,
+
     // Sound timer. Functions like the delay timer, but additionally makes a beeping
     // sound when the value is not 0.
     sound: Timer,
+
     // Memory model
     memory: Memory,
-    // MPSC receiver for interface events
-    peripheral_rx: Receiver<PeripheralEvent>,
-    // Internal frame buffer
+
+    // Frame data used to determine what colors to draw to each pixel, as
+    // well as whether drawing a pixel resulted in a collision.
     frame_buffer: Vec<bool>,
 
-    // Peripheral interfaces
+    // MPSC receiver for device events
+    device_channel: (mpmc::Sender<DeviceEvent>, mpmc::Receiver<DeviceEvent>),
+
+    // Devices
     display: Option<Box<dyn Display>>,
     audio: Option<Box<dyn Audio>>,
     input: Option<Box<dyn Input>>,
 }
 
-pub struct ChipEightBuilder {
-    settings: Option<Settings>,
-}
+impl From<Config> for ChipEight {
+    fn from(config: Config) -> Self {
+        let (device_tx, device_rx) = mpmc::channel();
 
-impl ChipEightBuilder {
-    pub fn build(&mut self) -> ChipEight {
-        let settings = match &mut self.settings {
-            Some(_) => self.settings.take().unwrap(),
-            None => Settings::default(),
-        };
-
-        let (peripheral_tx, peripheral_rx) = channel();
-
-        let mut sdl_context: Option<Sdl> = None;
-        let display: Option<Box<dyn Display>> = if let Some(engine) = &settings.display.engine {
-            match engine {
-                DisplayEngine::SDL3 => {
-                    match &sdl_context {
-                        Some(context) => {
-                            let video_subsystem = context.video().unwrap();
-                            Some(Box::new(SDL3Display::new(video_subsystem, settings.display.clone())))
-                        },
-                        None => {
-                            let context = sdl3::init().unwrap();
-                            let video_subsystem = context.video().unwrap();
-                            sdl_context = Some(context);
-                            Some(Box::new(SDL3Display::new(video_subsystem, settings.display.clone())))
-                        }
-                    }
-                }
-            }
-        } else {
-            None
-        };
-
-        let input: Option<Box<dyn Input>> = if let Some(engine) = &settings.input.engine {
-            match engine {
-                InputEngine::SDL3 => {
-                    match &sdl_context {
-                        Some(context) => {
-                            let event_pump = context.event_pump().unwrap();
-                            Some(Box::new(SDL3Input::new(event_pump)))
-                        },
-                        None => {
-                            let context = sdl3::init().unwrap();
-                            let event_pump = context.event_pump().unwrap();
-                            sdl_context = Some(context);
-                            Some(Box::new(SDL3Input::new(event_pump)))
-                        }
-                    }
-                }
-            }
-        } else {
-            None
-        };
-
-        let audio: Option<Box<dyn Audio>> = if let Some(engine) = &settings.audio.engine {
-            match engine {
-                AudioEngine::SDL3 => {
-                    match &sdl_context {
-                        Some(context) => {
-                            let audio_subsystem = context.audio().unwrap();
-                            Some(Box::new(SDL3Audio::new(audio_subsystem)))
-                        },
-                        None => {
-                            let context = sdl3::init().unwrap();
-                            let audio_subsystem = context.audio().unwrap();
-                            sdl_context = Some(context);
-                            Some(Box::new(SDL3Audio::new(audio_subsystem)))
-                        }
-                    }
-                }
-            }
-        } else {
-            None
-        };
-
-        ChipEight {
+        Self {
+            config,
             stack: Vec::new(),
-            pc: settings.program_addr, 
+            pc: config.memory.program_start, 
             v: [0; 16],
             i: 0,
             delay: Timer::new(None),
-            sound: Timer::new(Some(peripheral_tx.clone())),
-            memory: Memory::new(settings.memory_length),
-            peripheral_rx,
-            frame_buffer: vec![false; settings.display.width * settings.display.height],
-            display,
-            audio,
-            input,
-            settings,
+            sound: Timer::new(Some(device_tx.clone())),
+            memory: config.memory.into(),
+            frame_buffer: vec![false; config.display.width * config.display.height],
+            device_channel: (device_tx, device_rx),
+            display: config.display.into(),
+            audio: config.audio.into(),
+            input: config.input.into(),
         }
-    }
-
-    pub fn with_settings(&mut self, settings: Settings) -> &mut Self {
-        self.settings = Some(settings);
-        self
     }
 }
 
 impl ChipEight {
-    pub fn new() -> ChipEightBuilder {
-        ChipEightBuilder {
-            settings: None,
-        }
-    }
-
     pub fn play(&mut self, rom: &[u8]) {
-        let running = Arc::new(AtomicBool::new(true));
+        let running = Arc::new(atomic::AtomicBool::new(true));
 
         let running_clone = running.clone();
         ctrlc::set_handler(move || {
             println!("\nShutting down...");
-            running_clone.store(false, Ordering::SeqCst);
+            running_clone.store(false, atomic::Ordering::SeqCst);
         }).expect("Failed to set Ctrl-C handler");
 
         // Store default font

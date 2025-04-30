@@ -4,7 +4,12 @@ use sdl3::{
     audio::{AudioCallback, AudioFormat, AudioSpec, AudioStream, AudioStreamWithCallback}, event::Event, keyboard::Keycode, pixels::Color, render::{FRect, WindowCanvas}, AudioSubsystem, EventPump, VideoSubsystem
 };
 
-use super::{Audio, Display, DisplaySettings, Input};
+use crate::config::{AudioConfig, DisplayConfig, InputConfig};
+
+use super::{Audio, Display, Input};
+
+
+/* Display */
 
 macro_rules! color {
     ($config:expr, $index:tt) => {
@@ -17,15 +22,17 @@ macro_rules! color {
 }
 
 pub struct SDL3Display {
-    settings: DisplaySettings,
+    config: DisplayConfig,
     canvas: WindowCanvas,
 }
 
 impl SDL3Display {
-    pub fn new(video_subsystem: VideoSubsystem, settings: DisplaySettings) -> Self {
+    pub fn new(config: DisplayConfig) -> Self {
+        let context = sdl3::init().unwrap();
+        let video_subsystem = context.video().unwrap();
 
-        let scaled_width: u32 = settings.scaled_width().try_into().unwrap();
-        let scaled_height: u32 = settings.scaled_height().try_into().unwrap();
+        let scaled_width: u32 = config.scaled_width().try_into().unwrap();
+        let scaled_height: u32 = config.scaled_height().try_into().unwrap();
 
         let window = video_subsystem.window("Chip Eight", scaled_width, scaled_height)
             .position_centered()
@@ -33,12 +40,12 @@ impl SDL3Display {
             .unwrap();
 
         let mut canvas = window.into_canvas();
-        canvas.set_draw_color(color!(settings, 0));
+        canvas.set_draw_color(color!(config, 0));
         canvas.clear();
         canvas.present();
 
         Self {
-            settings,
+            config,
             canvas,
         }
     }
@@ -46,17 +53,17 @@ impl SDL3Display {
 
 impl Display for SDL3Display {
     fn clear(&mut self) {
-        self.canvas.set_draw_color(color!(self.settings, 0));
+        self.canvas.set_draw_color(color!(self.config, 0));
         self.canvas.clear();
     }
 
     fn draw_pixel(&mut self, x: usize, y: usize, color: usize) {
-        self.canvas.set_draw_color(color!(self.settings, color));
+        self.canvas.set_draw_color(color!(self.config, color));
         self.canvas.fill_rect(Some(FRect::new(
             x as f32,
             y as f32,
-            self.settings.scale_factor as f32,
-            self.settings.scale_factor as f32,
+            self.config.scale_factor as f32,
+            self.config.scale_factor as f32,
         ))).expect("Failed to draw pixel");
     }
 
@@ -65,13 +72,86 @@ impl Display for SDL3Display {
     }
 }
 
+
+/* Audio */
+
+struct SquareWave {
+    phase_inc: f32,
+    phase: f32,
+    volume: f32
+}
+
+impl AudioCallback<f32> for SquareWave {
+    fn callback(&mut self, stream: &mut AudioStream, len: i32) {
+        let mut out = vec![0.0; len as usize];
+
+        for x in out.iter_mut() {
+            *x = if self.phase <= 0.5 {
+                self.volume
+            } else {
+                -self.volume
+            };
+            self.phase = (self.phase + self.phase_inc) % 1.0;
+        }
+
+        stream.put_data_f32(&out)
+            .expect("Failed to push samples to audio stream");
+    }
+}
+
+pub struct SDL3Audio {
+    stream: AudioStreamWithCallback<SquareWave>,
+}
+
+impl SDL3Audio {
+    pub fn new(_config: AudioConfig) -> Self {
+        let context = sdl3::init().unwrap();
+        let audio_subsystem = context.audio().unwrap();
+
+        let source_freq = 44100;
+        let source_spec = AudioSpec {
+            freq: Some(source_freq),
+            channels: Some(1),                      // mono
+            format: Some(AudioFormat::f32_sys())    // floating 32 bit samples
+        };
+
+        let stream = audio_subsystem.open_playback_stream(&source_spec, SquareWave {
+            phase_inc: 440.0 / source_freq as f32,
+            phase: 0.0,
+            volume: 0.03,
+        }).unwrap();
+
+        Self {
+            stream,
+        }
+    }
+}
+
+impl Audio for SDL3Audio {
+    fn play_tone(&self) {
+        self.stream.resume()
+            .expect("Failed to play audio");
+    }
+
+    fn stop_tone(&self) {
+        self.stream.pause()
+            .expect("Failed to stop audio");
+    }
+}
+
+
+/* Input */
+
 pub struct SDL3Input {
     event_pump: EventPump,
     keys_pressed: [bool; 16],
 }
 
 impl SDL3Input {
-    pub fn new(event_pump: EventPump) -> Self {
+    pub fn new(_config: InputConfig) -> Self {
+        let context = sdl3::init().unwrap();
+        let event_pump = context.event_pump().unwrap();
+
         Self {
             event_pump,
             keys_pressed: [false; 16],
@@ -245,67 +325,5 @@ impl Input for SDL3Input {
         }
 
         0
-    }
-}
-
-struct SquareWave {
-    phase_inc: f32,
-    phase: f32,
-    volume: f32
-}
-
-impl AudioCallback<f32> for SquareWave {
-    fn callback(&mut self, stream: &mut AudioStream, len: i32) {
-        let mut out = vec![0.0; len as usize];
-
-        // Generate a square wave
-        for x in out.iter_mut() {
-            *x = if self.phase <= 0.5 {
-                self.volume
-            } else {
-                -self.volume
-            };
-            self.phase = (self.phase + self.phase_inc) % 1.0;
-        }
-
-        stream.put_data_f32(&out)
-            .expect("Failed to push samples to audio stream");
-    }
-}
-
-pub struct SDL3Audio {
-    device: AudioStreamWithCallback<SquareWave>,
-}
-
-impl SDL3Audio {
-    pub fn new(audio_subsystem: AudioSubsystem) -> Self {
-        let source_freq = 44100;
-        let source_spec = AudioSpec {
-            freq: Some(source_freq),
-            channels: Some(1),                      // mono
-            format: Some(AudioFormat::f32_sys())    // floating 32 bit samples
-        };
-
-        let device = audio_subsystem.open_playback_stream(&source_spec, SquareWave {
-            phase_inc: 440.0 / source_freq as f32,
-            phase: 0.0,
-            volume: 0.03,
-        }).unwrap();
-
-        Self {
-            device,
-        }
-    }
-}
-
-impl Audio for SDL3Audio {
-    fn play_tone(&self) {
-        self.device.resume()
-            .expect("Failed to play audio");
-    }
-
-    fn stop_tone(&self) {
-        self.device.pause()
-            .expect("Failed to stop audio");
     }
 }
