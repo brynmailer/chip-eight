@@ -7,7 +7,7 @@ CHIP-8 is a simple, interpreted programming language that was developed in the m
 Features include:
 - Full support for all instructions and quirks from the original Chip-8. As well as the modern Super-Chip, and XO-Chip extensions.
 - Extensive configuration interface allowing fine-grained control over most aspects of the emulator. See usage section for more details.
-- An abstraction layer that sits between the peripheral interfaces and the core emulator logic. Streamlining the implementation and configuration of alternate engines for the handling of keyboard input, and audio/display output.
+- An abstraction layer that sits between the peripheral devices and the core emulator logic. Streamlining the implementation and configuration of alternate engines for the handling of keyboard input, and audio/display output.
 - Ready to go SDL3 implementations of input/audio/display peripherals.
 
 
@@ -39,14 +39,17 @@ _For more details, please refer to the `sdl3` crate [documentation](https://gith
     ```
 2. Run the emulator
     ```sh
-    chip-eight -p roms/tests/CHIP8
+    chip-eight roms/tests/CHIP8
     ```
 
 
 ## Usage
 
-_Coming soon_
+```sh
+chip-eight [OPTIONS] <ROM_PATH>
+```
 
+_Refer to `chip-eight --help` for the full list of options_
 
 
 ## Retrospective
