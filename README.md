@@ -24,7 +24,7 @@ Disclaimer: I work entirely on Linux, and have not tested this project on other 
 
 This project requires SDL3. The `sdl3` crate (rust bindings for SDL3) exposes a number of configurable options to resolve this dependency, all of which are accessible via the corresponding `features` flags in `Cargo.toml`. I have it configured to build from source for personal convenience.
 
-_For more details, please refer to the `sdl3` crate [documentation](https://github.com/maia-s/sdl3-sys-rs/tree/main/sdl3-sys#usage)_
+_For more details, please refer to the `sdl3` crate [documentation](https://github.com/maia-s/sdl3-sys-rs/tree/main/sdl3-sys#usage)._
 
 ### Installation
 
@@ -49,7 +49,7 @@ _For more details, please refer to the `sdl3` crate [documentation](https://gith
 chip-eight [OPTIONS] <ROM_PATH>
 ```
 
-_Pass the `--help` flag for the full list of options_
+_Pass the `--help` flag for the full list of options._
 
 
 ## Retrospective

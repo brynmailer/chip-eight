@@ -187,15 +187,24 @@ impl ChipEight {
                 Instruction::SetVxToVy(reg_x, reg_y) => self.v[reg_x] = self.v[reg_y],
                 Instruction::SetVxOrVy(reg_x, reg_y) => {
                     self.v[reg_x] |= self.v[reg_y];
-                    self.v[0xF] = 0;
+
+                    if !self.config.quirks.skip_reset_vf {
+                        self.v[0xF] = 0;
+                    }
                 },
                 Instruction::SetVxAndVy(reg_x, reg_y) => {
                     self.v[reg_x] &= self.v[reg_y];
-                    self.v[0xF] = 0;
+
+                    if !self.config.quirks.skip_reset_vf {
+                        self.v[0xF] = 0;
+                    }
                 },
                 Instruction::SetVxXorVy(reg_x, reg_y) => {
                     self.v[reg_x] ^= self.v[reg_y];
-                    self.v[0xF] = 0;
+
+                    if !self.config.quirks.skip_reset_vf {
+                        self.v[0xF] = 0;
+                    }
                 },
                 Instruction::AddVyToVx(reg_x, reg_y) => {
                     let (result, overflowed) = self.v[reg_x].overflowing_add(self.v[reg_y]);
@@ -208,8 +217,14 @@ impl ChipEight {
                     self.v[0xF] = (!overflowed).into();
                 },
                 Instruction::RightShiftVx(reg_x, reg_y) => {
-                    let bit = self.v[reg_y] & 1;
-                    self.v[reg_x] = self.v[reg_y] >> 1;
+                    let reg = if self.config.quirks.skip_shift_set {
+                        reg_x
+                    } else {
+                        reg_y
+                    };
+
+                    let bit = self.v[reg] & 1;
+                    self.v[reg_x] = self.v[reg] >> 1;
                     self.v[0xF] = bit;
                 },
                 Instruction::SubVxFromVy(reg_x, reg_y) => {
@@ -218,8 +233,14 @@ impl ChipEight {
                     self.v[0xF] = (!overflowed).into();
                 },
                 Instruction::LeftShiftVx(reg_x, reg_y) => {
-                    let bit = (self.v[reg_y] >> 7) & 1;
-                    self.v[reg_x] = self.v[reg_y] << 1;
+                    let reg = if self.config.quirks.skip_shift_set {
+                        reg_x
+                    } else {
+                        reg_y
+                    };
+
+                    let bit = (self.v[reg] >> 7) & 1;
+                    self.v[reg_x] = self.v[reg] << 1;
                     self.v[0xF] = bit;
                 },
                 Instruction::IfVxNotEqVy(reg_x, reg_y) => {
@@ -228,7 +249,15 @@ impl ChipEight {
                     }
                 },
                 Instruction::SetI(addr) => self.i = addr,
-                Instruction::JumpWithOffset(addr) => self.pc = addr + self.v[0] as usize,
+                Instruction::JumpWithOffset(addr) => {
+                    let offset = if self.config.quirks.jump_with_vx {
+                        self.v[(addr >> 8) & 0xF]
+                    } else {
+                        self.v[0]
+                    };
+
+                    self.pc = addr + offset as usize;
+                },
                 Instruction::SetVxRand(reg, val) => self.v[reg] = rand::rng().random::<u8>() & val,
                 Instruction::Draw(reg_x, reg_y, sprite_height) => {
                     let config = &self.config.display;
@@ -336,6 +365,10 @@ impl ChipEight {
                                 panic!("Failed to store value in register to memory: {}", error);
                             });
                     }
+
+                    if !self.config.quirks.preserve_index {
+                        self.i += reg + 1;
+                    }
                 },
                 Instruction::VLoad(reg) => {
                     for index in 0..=reg {
@@ -344,6 +377,10 @@ impl ChipEight {
                                 panic!("Failed to load value from memory to register: {}", error);
                             });
                         self.v[index] = byte;
+                    }
+
+                    if !self.config.quirks.preserve_index {
+                        self.i += reg + 1;
                     }
                 },
             }

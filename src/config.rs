@@ -3,61 +3,95 @@ use clap::{Parser, ValueEnum};
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 pub struct Args {
-    /// Path to a ROM file
+    /// Path to a ROM file.
     pub rom_path: String,
 
 
-    /// Number of instruction to process per second
+    /// Number of instruction to process per second.
     #[arg(short, long, default_value_t = 600)]
     pub clock_speed: u64,
 
+    /// Skip setting vF to zero after executing opcodes 8XY1, 8XY2 and 8XY3.
+    #[arg(short = 'v', long)]
+    pub skip_reset_vf: bool,
 
-    /// Size of memory in bytes
+    /// Avoid incrementing the index register while executing opcodes FX55 and FX65.
+    #[arg(short = 'n', long)]
+    pub preserve_index: bool,
+
+    /// Opcode DXYN draws sprite immediately, instead of waiting for the display interrupt.
+    #[arg(short = 'w', long)]
+    pub skip_draw_wait: bool,
+
+    /// Wrap sprites drawn at the edge of the display.
+    #[arg(short = 'l', long)]
+    pub wrap_sprites: bool,
+
+    /// Skip setting vX to vY before shifting vX for opcodes 8XY6 and 8XYE.
+    #[arg(short, long)]
+    pub skip_shift_set: bool,
+
+    /// Use vX (instead of v0) as the jump offset for opcode BNNN. Where X is the most significant nibble of NNN.
+    #[arg(short, long)]
+    pub jump_with_vx: bool,
+
+
+    /// Size of memory in bytes.
     #[arg(short, long, default_value_t = 0x1000)]
     pub memory_length: usize,
 
-    /// Memory address of the first intruction of the loaded program
+    /// Memory address of the first intruction of the loaded program.
     #[arg(short, long, default_value_t = 0x200)]
     pub program_start: usize,
 
-    /// Memory address of the first byte of the default font
-    #[arg(short, long, default_value_t = 0x50)]
+    /// Memory address of the first byte of the default font.
+    #[arg(short = 'o', long, default_value_t = 0x50)]
     pub font_start: usize,
 
 
-    /// Display engine
+    /// Display engine.
     #[arg(short, long, value_enum, default_value_t = DisplayEngine::SDL3)]
     pub display_engine: DisplayEngine,
 
-    /// Display width in virtual pixels
+    /// Display width in virtual pixels.
     #[arg(short = 'y', long, default_value_t = 64)]
     pub width: usize,
 
-    /// Display height in virtual pixels
+    /// Display height in virtual pixels.
     #[arg(short = 'x', long, default_value_t = 32)]
     pub height: usize,
 
-    /// Number of device pixels to render per virtual pixel
-    #[arg(short, long, default_value_t = 20)]
+    /// Number of device pixels to render per virtual pixel.
+    #[arg(short = 'f', long, default_value_t = 20)]
     pub scale_factor: usize,
 
 
-    /// Audio engine
+    /// Audio engine.
     #[arg(short, long, value_enum, default_value_t = AudioEngine::SDL3)]
     pub audio_engine: AudioEngine,
 
 
-    /// Input engine
+    /// Input engine.
     #[arg(short, long, value_enum, default_value_t = InputEngine::SDL3)]
     pub input_engine: InputEngine,
 }
 
 pub struct Config {
     pub clock_speed: u64,
+    pub quirks: QuirksConfig,
     pub memory: MemoryConfig,
     pub display: DisplayConfig,
     pub audio: AudioConfig,
     pub input: InputConfig,
+}
+
+pub struct QuirksConfig {
+    pub skip_reset_vf: bool,
+    pub preserve_index: bool,
+    pub skip_draw_wait: bool,
+    pub wrap_sprites: bool,
+    pub skip_shift_set: bool,
+    pub jump_with_vx: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -121,6 +155,14 @@ impl From<Args> for Config {
     fn from(args: Args) -> Self {
         Self {
             clock_speed: args.clock_speed,
+            quirks: QuirksConfig {
+                skip_reset_vf: args.skip_reset_vf,
+                preserve_index: args.preserve_index,
+                skip_draw_wait: args.skip_draw_wait,
+                wrap_sprites: args.wrap_sprites,
+                skip_shift_set: args.skip_shift_set,
+                jump_with_vx: args.jump_with_vx,
+            },
             memory: MemoryConfig {
                 length: args.memory_length,
                 program_start: args.program_start,
