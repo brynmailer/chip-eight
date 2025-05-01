@@ -49,7 +49,7 @@ _For more details, please refer to the `sdl3` crate [documentation](https://gith
 chip-eight [OPTIONS] <ROM_PATH>
 ```
 
-_Refer to `chip-eight --help` for the full list of options_
+_Pass the `--help` flag for the full list of options_
 
 
 ## Retrospective
