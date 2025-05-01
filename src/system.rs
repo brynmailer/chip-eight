@@ -21,6 +21,7 @@ use crate::{
         Audio,
         Input,
     },
+    instructions::Instruction,
 };
 
 macro_rules! display_index {
@@ -56,7 +57,7 @@ pub struct ChipEight {
     // Memory model
     memory: Memory,
 
-    // Frame data used to determine what colors to draw to each pixel, as
+    // Frame data used to determine what to draw to each pixel, as
     // well as whether drawing a pixel resulted in a collision.
     frame_buffer: Vec<bool>,
 
@@ -74,7 +75,6 @@ impl From<Config> for ChipEight {
         let (device_tx, device_rx) = mpmc::channel();
 
         Self {
-            config,
             stack: Vec::new(),
             pc: config.memory.program_start, 
             v: [0; 16],
@@ -87,6 +87,7 @@ impl From<Config> for ChipEight {
             display: config.display.into(),
             audio: config.audio.into(),
             input: config.input.into(),
+            config,
         }
     }
 }
@@ -102,25 +103,26 @@ impl ChipEight {
         }).expect("Failed to set Ctrl-C handler");
 
         // Store default font
-        self.memory.write_buf(self.settings.font_addr, &self.settings.font).unwrap_or_else(|error| {
+        self.memory.write_buf(self.config.memory.font_start, &self.config.memory.default_font).unwrap_or_else(|error| {
             panic!("Failed to load default font: {}", error);
         });
 
         // Store ROM
-        self.memory.write_buf(self.settings.program_addr, rom).unwrap_or_else(|error| {
+        self.memory.write_buf(self.config.memory.program_start, rom).unwrap_or_else(|error| {
             panic!("Failed to load rom: {}", error);
         });
 
         let default_keys_pressed = [false; 16];
+        let (_device_tx, device_rx) = &self.device_channel;
 
-        while running.load(Ordering::SeqCst) {
+        while running.load(atomic::Ordering::SeqCst) {
             // Handle interface events
-            if let Ok(event) = self.peripheral_rx.try_recv() {
+            if let Ok(event) = device_rx.try_recv() {
                 match event {
-                    PeripheralEvent::PlayTone => if let Some(audio) = &self.audio {
+                    DeviceEvent::PlayTone => if let Some(audio) = &self.audio {
                         audio.play_tone();
                     },
-                    PeripheralEvent::StopTone => if let Some(audio) = &self.audio {
+                    DeviceEvent::StopTone => if let Some(audio) = &self.audio {
                         audio.stop_tone();
                     },
                 }
@@ -229,12 +231,12 @@ impl ChipEight {
                 Instruction::JumpWithOffset(addr) => self.pc = addr + self.v[0] as usize,
                 Instruction::SetVxRand(reg, val) => self.v[reg] = rand::rng().random::<u8>() & val,
                 Instruction::Draw(reg_x, reg_y, sprite_height) => {
-                    let settings = &self.settings.display;
+                    let config = &self.config.display;
 
                     self.v[0xF] = 0;
 
-                    let x = self.v[reg_x] as usize % settings.width;
-                    let y = self.v[reg_y] as usize % settings.height;
+                    let x = self.v[reg_x] as usize % config.width;
+                    let y = self.v[reg_y] as usize % config.height;
 
                     let sprite = self.memory
                         .read_buf(self.i, sprite_height.into())
@@ -245,14 +247,14 @@ impl ChipEight {
                     for (layer, byte) in sprite.iter().enumerate() {
                         let current_y = y + layer;
 
-                        if current_y >= settings.height {
+                        if current_y >= config.height {
                             break;
                         }
 
                         for position in 0..8 {
                             let current_x = x + position;
 
-                            if current_x >= settings.width {
+                            if current_x >= config.width {
                                 break;
                             }
 
@@ -262,7 +264,7 @@ impl ChipEight {
                                 if let Some(pixel) = self.frame_buffer.get_mut(display_index!(
                                     current_x,
                                     current_y,
-                                    settings.width
+                                    config.width
                                 )) {
                                     let mut color = 1;
 
@@ -273,8 +275,8 @@ impl ChipEight {
 
                                     if let Some(display) = &mut self.display {
                                         display.draw_pixel(
-                                            current_x * settings.scale_factor,
-                                            current_y * settings.scale_factor,
+                                            current_x * config.scale_factor,
+                                            current_y * config.scale_factor,
                                             color,
                                         );
                                     }
@@ -315,7 +317,7 @@ impl ChipEight {
                 Instruction::SetDelayToVx(reg) => self.delay.set(self.v[reg]),
                 Instruction::SetSoundToVx(reg) => self.sound.set(self.v[reg]),
                 Instruction::AddVxToI(reg) => self.i = self.i.wrapping_add(self.v[reg] as usize),
-                Instruction::SetIToCharInVx(reg) => self.i = self.settings.font_addr + ((self.v[reg] & 0xF) * 5) as usize,
+                Instruction::SetIToCharInVx(reg) => self.i = self.config.memory.font_start + ((self.v[reg] & 0xF) * 5) as usize,
                 Instruction::StoreVxBCDAtI(reg) => {
                     let mut value = self.v[reg];
                     for index in (0..3).rev() {
@@ -347,7 +349,7 @@ impl ChipEight {
             }
 
             // Sleep to ensure roughly correct clock speed
-            thread::sleep(Duration::from_millis(1000 / self.settings.clock_speed));
+            thread::sleep(Duration::from_millis(1000 / self.config.clock_speed));
         }
     }
 }

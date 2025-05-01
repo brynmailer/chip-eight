@@ -30,11 +30,11 @@ pub struct Args {
     pub display_engine: DisplayEngine,
 
     /// Display width in virtual pixels
-    #[arg(short, long, default_value_t = 64)]
+    #[arg(short = 'y', long, default_value_t = 64)]
     pub width: usize,
 
     /// Display height in virtual pixels
-    #[arg(short, long, default_value_t = 32)]
+    #[arg(short = 'x', long, default_value_t = 32)]
     pub height: usize,
 
     /// Number of device pixels to render per virtual pixel
@@ -60,6 +60,7 @@ pub struct Config {
     pub input: InputConfig,
 }
 
+#[derive(Clone, Copy)]
 pub struct MemoryConfig {
     pub length: usize,
     pub program_start: usize,
@@ -73,6 +74,7 @@ pub enum DisplayEngine {
     None,
 }
 
+#[derive(Clone, Copy)]
 pub struct DisplayConfig {
     pub engine: DisplayEngine,
     pub width: usize,
@@ -99,6 +101,7 @@ pub enum AudioEngine {
     None,
 }
 
+#[derive(Clone, Copy)]
 pub struct AudioConfig {
     pub engine: AudioEngine,
 }
@@ -109,6 +112,7 @@ pub enum InputEngine {
     None,
 }
 
+#[derive(Clone, Copy)]
 pub struct InputConfig {
     pub engine: InputEngine,
 }

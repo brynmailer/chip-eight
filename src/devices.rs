@@ -9,7 +9,6 @@ use crate::config;
 pub enum DeviceEvent {
     PlayTone,
     StopTone,
-    Draw,
 }
 
 

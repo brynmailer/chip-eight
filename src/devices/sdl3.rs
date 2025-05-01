@@ -1,7 +1,12 @@
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+use std::sync::{atomic, Arc};
 
 use sdl3::{
-    audio::{AudioCallback, AudioFormat, AudioSpec, AudioStream, AudioStreamWithCallback}, event::Event, keyboard::Keycode, pixels::Color, render::{FRect, WindowCanvas}, AudioSubsystem, EventPump, VideoSubsystem
+    pixels::Color,
+    render,
+    audio,
+    EventPump,
+    event::Event,
+    keyboard::Keycode,
 };
 
 use crate::config::{AudioConfig, DisplayConfig, InputConfig};
@@ -23,7 +28,7 @@ macro_rules! color {
 
 pub struct SDL3Display {
     config: DisplayConfig,
-    canvas: WindowCanvas,
+    canvas: render::WindowCanvas,
 }
 
 impl SDL3Display {
@@ -59,7 +64,7 @@ impl Display for SDL3Display {
 
     fn draw_pixel(&mut self, x: usize, y: usize, color: usize) {
         self.canvas.set_draw_color(color!(self.config, color));
-        self.canvas.fill_rect(Some(FRect::new(
+        self.canvas.fill_rect(Some(render::FRect::new(
             x as f32,
             y as f32,
             self.config.scale_factor as f32,
@@ -81,8 +86,8 @@ struct SquareWave {
     volume: f32
 }
 
-impl AudioCallback<f32> for SquareWave {
-    fn callback(&mut self, stream: &mut AudioStream, len: i32) {
+impl audio::AudioCallback<f32> for SquareWave {
+    fn callback(&mut self, stream: &mut audio::AudioStream, len: i32) {
         let mut out = vec![0.0; len as usize];
 
         for x in out.iter_mut() {
@@ -100,7 +105,7 @@ impl AudioCallback<f32> for SquareWave {
 }
 
 pub struct SDL3Audio {
-    stream: AudioStreamWithCallback<SquareWave>,
+    stream: audio::AudioStreamWithCallback<SquareWave>,
 }
 
 impl SDL3Audio {
@@ -109,10 +114,10 @@ impl SDL3Audio {
         let audio_subsystem = context.audio().unwrap();
 
         let source_freq = 44100;
-        let source_spec = AudioSpec {
+        let source_spec = audio::AudioSpec {
             freq: Some(source_freq),
             channels: Some(1),                      // mono
-            format: Some(AudioFormat::f32_sys())    // floating 32 bit samples
+            format: Some(audio::AudioFormat::f32_sys())    // floating 32 bit samples
         };
 
         let stream = audio_subsystem.open_playback_stream(&source_spec, SquareWave {
@@ -267,8 +272,8 @@ impl Input for SDL3Input {
         &self.keys_pressed
     }
 
-    fn wait_for_key(&mut self, running: Arc<AtomicBool>) -> u8 {
-        while running.load(Ordering::SeqCst) {
+    fn wait_for_key(&mut self, running: Arc<atomic::AtomicBool>) -> u8 {
+        while running.load(atomic::Ordering::SeqCst) {
             if let Some(event) = self.event_pump.wait_event_timeout(1000 / 700) {
                 match event {
                     Event::KeyDown { keycode: Some(Keycode::_1), .. } => {

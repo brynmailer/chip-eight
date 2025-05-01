@@ -19,23 +19,17 @@ impl fmt::Display for MemoryError {
 
 impl Error for MemoryError {}
 
-pub struct Memory {
-    config: MemoryConfig,
-    buffer: Vec<u8>,
-}
+pub struct Memory(Vec<u8>);
 
 impl From<MemoryConfig> for Memory {
     fn from(config: MemoryConfig) -> Self {
-        Self {
-            buffer: vec![0; config.length],
-            config,
-        }
+        Self(vec![0; config.length])
     }
 }
 
 impl Memory {
     fn is_in_bounds(&self, addr: usize) -> bool {
-        addr < self.buffer.len()
+        addr < self.0.len()
     }
 
     pub fn read_byte(&self, addr: usize) -> Result<u8, MemoryError> {
@@ -43,7 +37,7 @@ impl Memory {
             return Err(MemoryError::AddrOutOfBounds(addr));
         }
 
-        Ok(self.buffer[addr])
+        Ok(self.0[addr])
     }
 
     pub fn read_buf(
@@ -59,7 +53,7 @@ impl Memory {
             return Err(MemoryError::RangeOutOfBounds(addr, len));
         }
 
-        Ok(&self.buffer[addr..addr + len])
+        Ok(&self.0[addr..addr + len])
     }
 
     pub fn write_byte(
@@ -71,7 +65,7 @@ impl Memory {
             return Err(MemoryError::AddrOutOfBounds(addr));
         }
 
-        self.buffer[addr] = data;
+        self.0[addr] = data;
         Ok(())
     }
 
@@ -88,7 +82,7 @@ impl Memory {
             return Err(MemoryError::RangeOutOfBounds(addr, data.len()));
         }
 
-        self.buffer[addr..(addr + data.len())].copy_from_slice(data);
+        self.0[addr..(addr + data.len())].copy_from_slice(data);
         Ok(())
     }
 }
