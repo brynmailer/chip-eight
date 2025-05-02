@@ -338,7 +338,7 @@ impl ChipEight {
                                     true,
                                     false,
                                     atomic::Ordering::Acquire,
-                                    atomic::Ordering::SeqCst,
+                                    atomic::Ordering::Relaxed,
                                 ) {
                                     break;
                                 }
