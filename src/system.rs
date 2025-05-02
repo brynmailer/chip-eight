@@ -1,6 +1,8 @@
 use std::{
     sync::{
-        atomic, mpmc, Arc, Condvar, Mutex
+        atomic,
+        mpmc,
+        Arc,
     },
     thread,
     time::Duration,
@@ -289,17 +291,26 @@ impl ChipEight {
                         });
 
                     for (layer, byte) in sprite.iter().enumerate() {
-                        let current_y = y + layer;
-
-                        if current_y >= config.height {
-                            break;
+                        let mut current_y = y + layer;
+                        
+                        if !self.config.quirks.wrap_sprites {
+                            if current_y >= config.height {
+                                break;
+                            }
+                        } else {
+                            current_y = current_y % config.height;
                         }
 
-                        for position in 0..8 {
-                            let current_x = x + position;
 
-                            if current_x >= config.width {
-                                break;
+                        for position in 0..8 {
+                            let mut current_x = x + position;
+
+                            if !self.config.quirks.wrap_sprites {
+                                if current_x >= config.width {
+                                    break;
+                                }
+                            } else {
+                                current_x = current_x % config.width;
                             }
 
                             let bit = (byte.reverse_bits() >> position) & 1;
