@@ -24,12 +24,6 @@ use crate::{
     instructions::Instruction,
 };
 
-macro_rules! display_index {
-    ($x:expr, $y:expr, $width:expr) => {
-        $y * $width + $x
-    };
-}
-
 pub struct ChipEight {
     // General configuration
     config: Config,
@@ -112,16 +106,20 @@ impl ChipEight {
             panic!("Failed to load rom: {}", error);
         });
 
-        let (_device_tx, device_rx) = &self.device_channel;
+        let (device_tx, device_rx) = &self.device_channel;
         let default_keys_pressed = [false; 16];
         let should_draw = Arc::new(atomic::AtomicBool::new(false));
 
         let running_clone = running.clone();
+        let device_tx_clone = device_tx.clone();
         let should_draw_clone = should_draw.clone();
         thread::spawn(move || {
             let tick_duration = Duration::from_millis(1000 / 60); // 60hz
             
             while running_clone.load(atomic::Ordering::SeqCst) {
+                device_tx_clone.send(DeviceEvent::Draw)
+                    .expect("Failed to send draw event");
+
                 let _ = should_draw_clone.compare_exchange(
                     false,
                     true,
@@ -137,6 +135,9 @@ impl ChipEight {
             // Handle device events
             if let Ok(event) = device_rx.try_recv() {
                 match event {
+                    DeviceEvent::Draw => if let Some(display) = &mut self.display {
+                        display.draw(&self.frame_buffer);
+                    },
                     DeviceEvent::PlayTone => if let Some(audio) = &self.audio {
                         audio.play_tone();
                     },
@@ -171,9 +172,8 @@ impl ChipEight {
                 Instruction::Clear => {
                     self.frame_buffer.fill(false);
 
-                    if let Some(display) = &mut self.display {
-                        display.draw(&self.frame_buffer);
-                    }
+                    device_tx.send(DeviceEvent::Draw)
+                        .expect("Failed to send draw event");
                 },
                 Instruction::Return => {
                     self.pc = self.stack.pop()
@@ -316,11 +316,7 @@ impl ChipEight {
                             let bit = (byte.reverse_bits() >> position) & 1;
 
                             if bit != 0 {
-                                if let Some(pixel) = self.frame_buffer.get_mut(display_index!(
-                                    current_x,
-                                    current_y,
-                                    config.width
-                                )) {
+                                if let Some(pixel) = self.frame_buffer.get_mut(current_y * config.width + current_x) {
                                     if *pixel {
                                         self.v[0xF] = 1;
                                     }
@@ -346,10 +342,6 @@ impl ChipEight {
                                 break;
                             }
                         }
-                    }
-
-                    if let Some(display) = &mut self.display {
-                        display.draw(&self.frame_buffer);
                     }
                 },
                 Instruction::IfKeyPressed(reg) => {
