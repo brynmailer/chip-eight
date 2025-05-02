@@ -1,8 +1,6 @@
 use std::{
     sync::{
-        mpmc,
-        atomic,
-        Arc,
+        atomic, mpmc, Arc, Condvar, Mutex
     },
     thread,
     time::Duration,
@@ -112,11 +110,29 @@ impl ChipEight {
             panic!("Failed to load rom: {}", error);
         });
 
-        let default_keys_pressed = [false; 16];
         let (_device_tx, device_rx) = &self.device_channel;
+        let default_keys_pressed = [false; 16];
+        let should_draw = Arc::new(atomic::AtomicBool::new(false));
+
+        let running_clone = running.clone();
+        let should_draw_clone = should_draw.clone();
+        thread::spawn(move || {
+            let tick_duration = Duration::from_millis(1000 / 60); // 60hz
+            
+            while running_clone.load(atomic::Ordering::SeqCst) {
+                let _ = should_draw_clone.compare_exchange(
+                    false,
+                    true,
+                    atomic::Ordering::Acquire,
+                    atomic::Ordering::SeqCst,
+                );
+
+                thread::sleep(tick_duration);
+            }
+        });
 
         while running.load(atomic::Ordering::SeqCst) {
-            // Handle interface events
+            // Handle device events
             if let Ok(event) = device_rx.try_recv() {
                 match event {
                     DeviceEvent::PlayTone => if let Some(audio) = &self.audio {
@@ -154,8 +170,7 @@ impl ChipEight {
                     self.frame_buffer.fill(false);
 
                     if let Some(display) = &mut self.display {
-                        display.clear();
-                        display.render();
+                        display.draw(&self.frame_buffer);
                     }
                 },
                 Instruction::Return => {
@@ -295,19 +310,8 @@ impl ChipEight {
                                     current_y,
                                     config.width
                                 )) {
-                                    let mut color = 1;
-
                                     if *pixel {
                                         self.v[0xF] = 1;
-                                        color = 0;
-                                    }
-
-                                    if let Some(display) = &mut self.display {
-                                        display.draw_pixel(
-                                            current_x * config.scale_factor,
-                                            current_y * config.scale_factor,
-                                            color,
-                                        );
                                     }
 
                                     *pixel = !*pixel;
@@ -316,9 +320,25 @@ impl ChipEight {
                         }
                     }
 
+                    if !self.config.quirks.skip_draw_wait {
+                        loop {
+                            if running.load(atomic::Ordering::SeqCst) {
+                                if let Ok(true) = should_draw.compare_exchange(
+                                    true,
+                                    false,
+                                    atomic::Ordering::Acquire,
+                                    atomic::Ordering::SeqCst,
+                                ) {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                    }
 
                     if let Some(display) = &mut self.display {
-                        display.render();
+                        display.draw(&self.frame_buffer);
                     }
                 },
                 Instruction::IfKeyPressed(reg) => {

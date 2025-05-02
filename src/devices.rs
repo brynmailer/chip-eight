@@ -13,9 +13,7 @@ pub enum DeviceEvent {
 
 
 pub trait Display {
-    fn clear(&mut self);
-    fn draw_pixel(&mut self, x: usize, y: usize, color: usize);
-    fn render(&mut self);
+    fn draw(&mut self, frame: &[bool]);
 }
 
 impl From<config::DisplayConfig> for Option<Box<dyn Display>> {

@@ -57,22 +57,34 @@ impl SDL3Display {
 }
 
 impl Display for SDL3Display {
-    fn clear(&mut self) {
+    fn draw(&mut self, frame: &[bool]) {
+        let mut on: Vec<render::FRect> = Vec::new();
+        let mut off: Vec<render::FRect> = Vec::new();
+
+        for (index, &value) in frame.iter().enumerate() {
+            let rect = render::FRect::new(
+                ((index % self.config.width) * self.config.scale_factor) as f32,
+                ((index / self.config.width) * self.config.scale_factor) as f32,
+                self.config.scale_factor as f32,
+                self.config.scale_factor as f32,
+            );
+
+            if value {
+                on.push(rect);
+            } else {
+                off.push(rect);
+            }
+        }
+
+        self.canvas.set_draw_color(color!(self.config, 1));
+        self.canvas.fill_rects(&on)
+            .expect("Failed to draw");
+
         self.canvas.set_draw_color(color!(self.config, 0));
-        self.canvas.clear();
-    }
+        self.canvas.fill_rects(&off)
+            .expect("Failed to draw");
 
-    fn draw_pixel(&mut self, x: usize, y: usize, color: usize) {
-        self.canvas.set_draw_color(color!(self.config, color));
-        self.canvas.fill_rect(Some(render::FRect::new(
-            x as f32,
-            y as f32,
-            self.config.scale_factor as f32,
-            self.config.scale_factor as f32,
-        ))).expect("Failed to draw pixel");
-    }
 
-    fn render(&mut self) {
         self.canvas.present();
     }
 }
