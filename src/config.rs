@@ -1,4 +1,8 @@
+use std::rc::Rc;
+
 use clap::{Parser, ValueEnum};
+
+use crate::devices::Key;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -79,10 +83,10 @@ pub struct Args {
 pub struct Config {
     pub clock_speed: u64,
     pub quirks: QuirksConfig,
-    pub memory: MemoryConfig,
-    pub display: DisplayConfig,
-    pub audio: AudioConfig,
-    pub input: InputConfig,
+    pub memory: Rc<MemoryConfig>,
+    pub display: Rc<DisplayConfig>,
+    pub audio: Rc<AudioConfig>,
+    pub input: Rc<InputConfig>,
 }
 
 pub struct QuirksConfig {
@@ -94,7 +98,6 @@ pub struct QuirksConfig {
     pub jump_with_vx: bool,
 }
 
-#[derive(Clone, Copy)]
 pub struct MemoryConfig {
     pub length: usize,
     pub program_start: usize,
@@ -102,13 +105,12 @@ pub struct MemoryConfig {
     pub default_font: [u8; 80],
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum DisplayEngine {
     SDL3,
     None,
 }
 
-#[derive(Clone, Copy)]
 pub struct DisplayConfig {
     pub engine: DisplayEngine,
     pub width: usize,
@@ -129,26 +131,25 @@ impl DisplayConfig {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum AudioEngine {
     SDL3,
     None,
 }
 
-#[derive(Clone, Copy)]
 pub struct AudioConfig {
     pub engine: AudioEngine,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum InputEngine {
     SDL3,
     None,
 }
 
-#[derive(Clone, Copy)]
 pub struct InputConfig {
     pub engine: InputEngine,
+    pub key_map: Vec<(Key, String)>,
 }
 
 impl From<Args> for Config {
@@ -163,7 +164,7 @@ impl From<Args> for Config {
                 skip_shift_set: args.skip_shift_set,
                 jump_with_vx: args.jump_with_vx,
             },
-            memory: MemoryConfig {
+            memory: Rc::new(MemoryConfig {
                 length: args.memory_length,
                 program_start: args.program_start,
                 font_start: args.font_start,
@@ -185,8 +186,8 @@ impl From<Args> for Config {
                     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
                     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
                 ],
-            },
-            display: DisplayConfig {
+            }),
+            display: Rc::new(DisplayConfig {
                 engine: args.display_engine,
                 width: args.width,
                 height: args.height,
@@ -197,13 +198,31 @@ impl From<Args> for Config {
                     // On
                     (255, 255, 255),
                 ],
-            },
-            audio: AudioConfig {
+            }),
+            audio: Rc::new(AudioConfig {
                 engine: args.audio_engine,
-            },
-            input: InputConfig {
+            }),
+            input: Rc::new(InputConfig {
                 engine: args.input_engine,
-            },
+                key_map: vec![
+                    (Key::_0, "X".to_string()),
+                    (Key::_1, "1".to_string()),
+                    (Key::_2, "2".to_string()),
+                    (Key::_3, "3".to_string()),
+                    (Key::_4, "Q".to_string()),
+                    (Key::_5, "W".to_string()),
+                    (Key::_6, "E".to_string()),
+                    (Key::_7, "A".to_string()),
+                    (Key::_8, "S".to_string()),
+                    (Key::_9, "D".to_string()),
+                    (Key::A, "Z".to_string()),
+                    (Key::B, "C".to_string()),
+                    (Key::C, "4".to_string()),
+                    (Key::D, "R".to_string()),
+                    (Key::E, "F".to_string()),
+                    (Key::F, "V".to_string()),
+                ],
+            }),
         }
     }
 }

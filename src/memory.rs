@@ -1,4 +1,4 @@
-use std::{error::Error, fmt, usize};
+use std::{error::Error, fmt, rc::Rc, usize};
 
 use crate::config::MemoryConfig;
 
@@ -21,13 +21,11 @@ impl Error for MemoryError {}
 
 pub struct Memory(Vec<u8>);
 
-impl From<MemoryConfig> for Memory {
-    fn from(config: MemoryConfig) -> Self {
+impl Memory {
+    pub fn new(config: Rc<MemoryConfig>) -> Self {
         Self(vec![0; config.length])
     }
-}
 
-impl Memory {
     fn is_in_bounds(&self, addr: usize) -> bool {
         addr < self.0.len()
     }

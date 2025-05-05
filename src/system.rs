@@ -12,16 +12,9 @@ use ctrlc;
 use rand::{self, Rng};
 
 use crate::{
-    config::Config,
-    memory::Memory,
-    timer::Timer,
-    devices::{
-        DeviceEvent,
-        Display,
-        Audio,
-        Input,
-    },
-    instructions::Instruction,
+    config::Config, devices::{
+        create_audio_device, create_display_device, create_input_device, Audio, DeviceEvent, Display, Input, Key
+    }, instructions::Instruction, memory::Memory, timer::Timer
 };
 
 pub struct ChipEight {
@@ -75,12 +68,12 @@ impl From<Config> for ChipEight {
             i: 0,
             delay: Timer::new(None),
             sound: Timer::new(Some(device_tx.clone())),
-            memory: config.memory.into(),
+            memory: Memory::new(config.memory.clone()),
             frame_buffer: vec![false; config.display.width * config.display.height],
             device_channel: (device_tx, device_rx),
-            display: config.display.into(),
-            audio: config.audio.into(),
-            input: config.input.into(),
+            display: create_display_device(config.display.clone()),
+            audio: create_audio_device(config.audio.clone()),
+            input: create_input_device(config.input.clone()),
             config,
         }
     }
@@ -107,7 +100,6 @@ impl ChipEight {
         });
 
         let (device_tx, device_rx) = &self.device_channel;
-        let default_keys_pressed = [false; 16];
         let should_draw = Arc::new(atomic::AtomicBool::new(false));
 
         let running_clone = running.clone();
@@ -147,10 +139,10 @@ impl ChipEight {
                 }
             }
 
-            let keys_pressed = if let Some(input) = &mut self.input {
+            let keys_down = if let Some(input) = &mut self.input {
                 input.get_keys_down()
             } else {
-                &default_keys_pressed
+                vec![]
             };
 
             // Fetch and decode current instruction
@@ -347,21 +339,37 @@ impl ChipEight {
                 Instruction::IfKeyPressed(reg) => {
                     let key = self.v[reg] & 0xF;
 
-                    if keys_pressed[key as usize] {
+                    if keys_down.contains(
+                        &Key::try_from(key)
+                            .expect("Attempted to check an invalid keycode")
+                    ) {
                         self.pc += 2;
                     }
                 },
                 Instruction::IfKeyNotPressed(reg) => {
                     let key = self.v[reg] & 0xF;
 
-                    if !keys_pressed[key as usize] {
+                    if !keys_down.contains(
+                        &Key::try_from(key)
+                            .expect("Attempted to check an invalid keycode")
+                    ) {
                         self.pc += 2;
                     }
                 },
                 Instruction::SetVxToDelay(reg) => self.v[reg] = self.delay.get(),
                 Instruction::SetVxToKey(reg) => {
                     if let Some(input) = &mut self.input {
-                        self.v[reg] = input.wait_for_key(running.clone());
+                        if let [key, ..] = keys_down.as_slice() {
+                            while running.load(atomic::Ordering::SeqCst) {
+                                if !input.get_keys_down().contains(key) {
+                                    break;
+                                }
+                            }
+
+                            self.v[reg] = *key as u8;
+                        } else {
+                            self.pc -= 2;
+                        }
                     } else {
                         panic!("Attempt to wait for key press failed: no available input peripheral");
                     }
