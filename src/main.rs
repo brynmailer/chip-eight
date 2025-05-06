@@ -4,7 +4,6 @@ mod config;
 mod system;
 mod timer;
 mod memory;
-mod instructions;
 mod devices;
 
 use std::{fs::File, io::Read};
