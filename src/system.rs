@@ -171,124 +171,124 @@ impl ChipEight {
                         .expect("Failed to return from subroutine: stack is empty");
                 },
                 1NNN => {
-                    self.pc = NNN;
+                    self.pc = $NNN;
                 },
                 2NNN => {
                     self.stack.push(self.pc);
-                    self.pc = NNN;
+                    self.pc = $NNN;
                 },
                 3XNN => {
-                    if self.v[X] == NN {
+                    if self.v[$X] == $NN {
                         self.pc += 2;
                     }
                 },
                 4XNN => {
-                    if self.v[X] != NN {
+                    if self.v[$X] != $NN {
                         self.pc += 2;
                     }
                 },
                 5XY0 => {
-                    if self.v[X] == self.v[Y] {
+                    if self.v[$X] == self.v[$Y] {
                         self.pc += 2;
                     }
                 },
                 6XNN => {
-                    self.v[X] = nn;
+                    self.v[$X] = $NN;
                 },
                 7XNN => {
-                    self.v[X] = self.v[Y].wrapping_add(NN)
+                    self.v[$X] = self.v[$Y].wrapping_add($NN)
                 },
                 8XY0 => {
-                    self.v[X] = self.v[Y];
+                    self.v[$X] = self.v[$Y];
                 },
                 8XY1 => {
-                    self.v[X] |= self.v[Y];
+                    self.v[$X] |= self.v[$Y];
 
                     if !self.config.quirks.skip_reset_vf {
                         self.v[0xF] = 0;
                     }
                 },
                 8XY2 => {
-                    self.v[X] &= self.v[Y];
+                    self.v[$X] &= self.v[$Y];
 
                     if !self.config.quirks.skip_reset_vf {
                         self.v[0xF] = 0;
                     }
                 },
                 8XY3 => {
-                    self.v[X] ^= self.v[Y];
+                    self.v[$X] ^= self.v[$Y];
 
                     if !self.config.quirks.skip_reset_vf {
                         self.v[0xF] = 0;
                     }
                 },
                 8XY4 => {
-                    let (result, overflowed) = self.v[X].overflowing_add(self.v[Y]);
-                    self.v[X] = result;
+                    let (result, overflowed) = self.v[$X].overflowing_add(self.v[$Y]);
+                    self.v[$X] = result;
                     self.v[0xF] = overflowed.into();
                 },
                 8XY5 => {
-                    let (result, overflowed) = self.v[X].overflowing_sub(self.v[Y]);
-                    self.v[X] = result;
+                    let (result, overflowed) = self.v[$X].overflowing_sub(self.v[$Y]);
+                    self.v[$X] = result;
                     self.v[0xF] = (!overflowed).into();
                 },
                 8XY6 => {
                     let reg = if self.config.quirks.skip_shift_set {
-                        X
+                        $X
                     } else {
-                        Y
+                        $Y
                     };
 
                     let bit = self.v[reg] & 1;
-                    self.v[X] = self.v[reg] >> 1;
+                    self.v[$X] = self.v[reg] >> 1;
                     self.v[0xF] = bit;
                 },
                 8XY7 => {
-                    let (result, overflowed) = self.v[Y].overflowing_sub(self.v[X]);
-                    self.v[X] = result;
+                    let (result, overflowed) = self.v[$Y].overflowing_sub(self.v[$X]);
+                    self.v[$X] = result;
                     self.v[0xF] = (!overflowed).into();
                 },
                 8XYE => {
                     let reg = if self.config.quirks.skip_shift_set {
-                        X
+                        $X
                     } else {
-                        Y
+                        $Y
                     };
 
                     let bit = (self.v[reg] >> 7) & 1;
-                    self.v[X] = self.v[reg] << 1;
+                    self.v[$X] = self.v[reg] << 1;
                     self.v[0xF] = bit;
                 },
                 9XY0 => {
-                    if self.v[X] != self.v[Y] {
+                    if self.v[$X] != self.v[$Y] {
                         self.pc += 2;
                     }
                 },
                 ANNN => {
-                    self.i = addr;
+                    self.i = $NNN;
                 },
                 BNNN => {
                     let offset = if self.config.quirks.jump_with_vx {
-                        self.v[(NNN >> 8) & 0xF]
+                        self.v[($NNN >> 8) & 0xF]
                     } else {
                         self.v[0]
                     };
 
-                    self.pc = NNN + offset as usize;
+                    self.pc = $NNN + offset as usize;
                 },
                 CXNN => {
-                    self.v[X] = rand::rng().random::<u8>() & NNN;
+                    self.v[$X] = rand::rng().random::<u8>() & $NN;
                 },
                 DXYN => {
                     let config = &self.config.display;
 
                     self.v[0xF] = 0;
 
-                    let x = self.v[X] as usize % config.width;
-                    let y = self.v[Y] as usize % config.height;
+                    let x = self.v[$X] as usize % config.width;
+                    let y = self.v[$Y] as usize % config.height;
 
                     let sprite = self.memory
-                        .read_buf(self.i, N.into())
+                        .read_buf(self.i, $N.into())
                         .unwrap_or_else(|error| {
                             panic!("Failed to fetch sprite: {}", error);
                         });
@@ -348,7 +348,7 @@ impl ChipEight {
                     }
                 },
                 EX9E => {
-                    let key = self.v[X] & 0xF;
+                    let key = self.v[$X] & 0xF;
 
                     if keys_down.contains(
                         &Key::try_from(key)
@@ -358,7 +358,7 @@ impl ChipEight {
                     }
                 },
                 EXA1 => {
-                    let key = self.v[X] & 0xF;
+                    let key = self.v[$X] & 0xF;
 
                     if !keys_down.contains(
                         &Key::try_from(key)
@@ -368,7 +368,7 @@ impl ChipEight {
                     }
                 },
                 FX07 => {
-                    self.v[reg] = self.delay.get();
+                    self.v[$X] = self.delay.get();
                 },
                 FX0A => {
                     if let Some(input) = &mut self.input {
@@ -379,7 +379,7 @@ impl ChipEight {
                                 }
                             }
 
-                            self.v[X] = *key as u8;
+                            self.v[$X] = *key as u8;
                         } else {
                             self.pc -= 2;
                         }
@@ -388,19 +388,19 @@ impl ChipEight {
                     }
                 },
                 FX15 => {
-                    self.delay.set(self.v[X]);
+                    self.delay.set(self.v[$X]);
                 },
                 FX18 => {
-                    self.sound.set(self.v[X]);
+                    self.sound.set(self.v[$X]);
                 },
                 FX1E => {
-                    self.i = self.i.wrapping_add(self.v[X] as usize);
+                    self.i = self.i.wrapping_add(self.v[$X] as usize);
                 },
                 FX29 => {
-                    self.i = self.config.memory.font_start + ((self.v[X] & 0xF) * 5) as usize;
+                    self.i = self.config.memory.font_start + ((self.v[$X] & 0xF) * 5) as usize;
                 },
                 FX33 => {
-                    let mut value = self.v[X];
+                    let mut value = self.v[$X];
                     for index in (0..3).rev() {
                         self.memory.write_byte(self.i + index, value % 10)
                             .unwrap_or_else(|error| {
@@ -411,7 +411,7 @@ impl ChipEight {
                     }
                 },
                 FX55 => {
-                    for index in 0..=X {
+                    for index in 0..=$X {
                         self.memory.write_byte(self.i + index, self.v[index])
                             .unwrap_or_else(|error| {
                                 panic!("Failed to store value in register to memory: {}", error);
@@ -419,11 +419,11 @@ impl ChipEight {
                     }
 
                     if !self.config.quirks.preserve_index {
-                        self.i += X + 1;
+                        self.i += $X + 1;
                     }
                 },
                 FX65 => {
-                    for index in 0..=X {
+                    for index in 0..=$X {
                         let byte = self.memory.read_byte(self.i + index)
                             .unwrap_or_else(|error| {
                                 panic!("Failed to load value from memory to register: {}", error);
@@ -432,7 +432,7 @@ impl ChipEight {
                     }
 
                     if !self.config.quirks.preserve_index {
-                        self.i += X + 1;
+                        self.i += $X + 1;
                     }
                 },
             });
