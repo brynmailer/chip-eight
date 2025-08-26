@@ -14,7 +14,7 @@ use rand::{self, Rng};
 use crate::{
     config::Config, devices::{
         create_audio_device, create_display_device, create_input_device, Audio, DeviceEvent, Display, Input, Key
-    }, memory::Memory, timer::Timer
+    }, instructions::Instruction, memory::Memory, timer::Timer
 };
 
 pub struct ChipEight {
@@ -160,135 +160,124 @@ impl ChipEight {
             self.pc += 2;
 
             // Execute instruction
-            execute!(opcode, {
-                00E0 => {
+            match instruction {
+                Instruction::Clear => {
                     self.frame_buffer.fill(false);
+
                     device_tx.send(DeviceEvent::Draw)
                         .expect("Failed to send draw event");
                 },
-                00EE => {
+                Instruction::Return => {
                     self.pc = self.stack.pop()
                         .expect("Failed to return from subroutine: stack is empty");
                 },
-                1NNN => {
-                    self.pc = NNN;
-                },
-                2NNN => {
+                Instruction::Jump(addr) => self.pc = addr,
+                Instruction::Call(addr) => {
                     self.stack.push(self.pc);
-                    self.pc = NNN;
-                },
-                3XNN => {
-                    if self.v[X] == NN {
+                    self.pc = addr;
+                }
+                Instruction::IfVxEq(reg, val) => {
+                    if self.v[reg] == val {
                         self.pc += 2;
                     }
                 },
-                4XNN => {
-                    if self.v[X] != NN {
+                Instruction::IfVxNotEq(reg, val) => {
+                    if self.v[reg] != val {
                         self.pc += 2;
                     }
                 },
-                5XY0 => {
-                    if self.v[X] == self.v[Y] {
+                Instruction::IfVxEqVy(reg_x, reg_y) => {
+                    if self.v[reg_x] == self.v[reg_y] {
                         self.pc += 2;
                     }
                 },
-                6XNN => {
-                    self.v[X] = nn;
-                },
-                7XNN => {
-                    self.v[X] = self.v[Y].wrapping_add(NN)
-                },
-                8XY0 => {
-                    self.v[X] = self.v[Y];
-                },
-                8XY1 => {
-                    self.v[X] |= self.v[Y];
+                Instruction::SetVx(reg, val) => self.v[reg] = val,
+                Instruction::AddToVx(reg, val) => self.v[reg] = self.v[reg].wrapping_add(val),
+                Instruction::SetVxToVy(reg_x, reg_y) => self.v[reg_x] = self.v[reg_y],
+                Instruction::SetVxOrVy(reg_x, reg_y) => {
+                    self.v[reg_x] |= self.v[reg_y];
 
                     if !self.config.quirks.skip_reset_vf {
                         self.v[0xF] = 0;
                     }
                 },
-                8XY2 => {
-                    self.v[X] &= self.v[Y];
+                Instruction::SetVxAndVy(reg_x, reg_y) => {
+                    self.v[reg_x] &= self.v[reg_y];
 
                     if !self.config.quirks.skip_reset_vf {
                         self.v[0xF] = 0;
                     }
                 },
-                8XY3 => {
-                    self.v[X] ^= self.v[Y];
+                Instruction::SetVxXorVy(reg_x, reg_y) => {
+                    self.v[reg_x] ^= self.v[reg_y];
 
                     if !self.config.quirks.skip_reset_vf {
                         self.v[0xF] = 0;
                     }
                 },
-                8XY4 => {
-                    let (result, overflowed) = self.v[X].overflowing_add(self.v[Y]);
-                    self.v[X] = result;
+                Instruction::AddVyToVx(reg_x, reg_y) => {
+                    let (result, overflowed) = self.v[reg_x].overflowing_add(self.v[reg_y]);
+                    self.v[reg_x] = result;
                     self.v[0xF] = overflowed.into();
                 },
-                8XY5 => {
-                    let (result, overflowed) = self.v[X].overflowing_sub(self.v[Y]);
-                    self.v[X] = result;
+                Instruction::SubVyFromVx(reg_x, reg_y) => {
+                    let (result, overflowed) = self.v[reg_x].overflowing_sub(self.v[reg_y]);
+                    self.v[reg_x] = result;
                     self.v[0xF] = (!overflowed).into();
                 },
-                8XY6 => {
+                Instruction::RightShiftVx(reg_x, reg_y) => {
                     let reg = if self.config.quirks.skip_shift_set {
-                        X
+                        reg_x
                     } else {
-                        Y
+                        reg_y
                     };
 
                     let bit = self.v[reg] & 1;
-                    self.v[X] = self.v[reg] >> 1;
+                    self.v[reg_x] = self.v[reg] >> 1;
                     self.v[0xF] = bit;
                 },
-                8XY7 => {
-                    let (result, overflowed) = self.v[Y].overflowing_sub(self.v[X]);
-                    self.v[X] = result;
+                Instruction::SubVxFromVy(reg_x, reg_y) => {
+                    let (result, overflowed) = self.v[reg_y].overflowing_sub(self.v[reg_x]);
+                    self.v[reg_x] = result;
                     self.v[0xF] = (!overflowed).into();
                 },
-                8XYE => {
+                Instruction::LeftShiftVx(reg_x, reg_y) => {
                     let reg = if self.config.quirks.skip_shift_set {
-                        X
+                        reg_x
                     } else {
-                        Y
+                        reg_y
                     };
 
                     let bit = (self.v[reg] >> 7) & 1;
-                    self.v[X] = self.v[reg] << 1;
+                    self.v[reg_x] = self.v[reg] << 1;
                     self.v[0xF] = bit;
                 },
-                9XY0 => {
-                    if self.v[X] != self.v[Y] {
+                Instruction::IfVxNotEqVy(reg_x, reg_y) => {
+                    if self.v[reg_x] != self.v[reg_y] {
                         self.pc += 2;
                     }
                 },
-                ANNN => {
-                    self.i = addr;
-                },
-                BNNN => {
+                Instruction::SetI(addr) => self.i = addr,
+                Instruction::JumpWithOffset(addr) => {
                     let offset = if self.config.quirks.jump_with_vx {
-                        self.v[(NNN >> 8) & 0xF]
+                        self.v[(addr >> 8) & 0xF]
                     } else {
                         self.v[0]
                     };
 
-                    self.pc = NNN + offset as usize;
+                    self.pc = addr + offset as usize;
                 },
-                CXNN => {
-                    self.v[X] = rand::rng().random::<u8>() & NNN;
-                },
-                DXYN => {
+                Instruction::SetVxRand(reg, val) => self.v[reg] = rand::rng().random::<u8>() & val,
+                Instruction::Draw(reg_x, reg_y, sprite_height) => {
                     let config = &self.config.display;
 
                     self.v[0xF] = 0;
 
-                    let x = self.v[X] as usize % config.width;
-                    let y = self.v[Y] as usize % config.height;
+                    let x = self.v[reg_x] as usize % config.width;
+                    let y = self.v[reg_y] as usize % config.height;
 
                     let sprite = self.memory
-                        .read_buf(self.i, N.into())
+                        .read_buf(self.i, sprite_height.into())
                         .unwrap_or_else(|error| {
                             panic!("Failed to fetch sprite: {}", error);
                         });
@@ -347,8 +336,8 @@ impl ChipEight {
                         }
                     }
                 },
-                EX9E => {
-                    let key = self.v[X] & 0xF;
+                Instruction::IfKeyPressed(reg) => {
+                    let key = self.v[reg] & 0xF;
 
                     if keys_down.contains(
                         &Key::try_from(key)
@@ -357,8 +346,8 @@ impl ChipEight {
                         self.pc += 2;
                     }
                 },
-                EXA1 => {
-                    let key = self.v[X] & 0xF;
+                Instruction::IfKeyNotPressed(reg) => {
+                    let key = self.v[reg] & 0xF;
 
                     if !keys_down.contains(
                         &Key::try_from(key)
@@ -367,10 +356,8 @@ impl ChipEight {
                         self.pc += 2;
                     }
                 },
-                FX07 => {
-                    self.v[reg] = self.delay.get();
-                },
-                FX0A => {
+                Instruction::SetVxToDelay(reg) => self.v[reg] = self.delay.get(),
+                Instruction::SetVxToKey(reg) => {
                     if let Some(input) = &mut self.input {
                         if let [key, ..] = keys_down.as_slice() {
                             while running.load(atomic::Ordering::SeqCst) {
@@ -379,7 +366,7 @@ impl ChipEight {
                                 }
                             }
 
-                            self.v[X] = *key as u8;
+                            self.v[reg] = *key as u8;
                         } else {
                             self.pc -= 2;
                         }
@@ -387,20 +374,12 @@ impl ChipEight {
                         panic!("Attempt to wait for key press failed: no available input peripheral");
                     }
                 },
-                FX15 => {
-                    self.delay.set(self.v[X]);
-                },
-                FX18 => {
-                    self.sound.set(self.v[X]);
-                },
-                FX1E => {
-                    self.i = self.i.wrapping_add(self.v[X] as usize);
-                },
-                FX29 => {
-                    self.i = self.config.memory.font_start + ((self.v[X] & 0xF) * 5) as usize;
-                },
-                FX33 => {
-                    let mut value = self.v[X];
+                Instruction::SetDelayToVx(reg) => self.delay.set(self.v[reg]),
+                Instruction::SetSoundToVx(reg) => self.sound.set(self.v[reg]),
+                Instruction::AddVxToI(reg) => self.i = self.i.wrapping_add(self.v[reg] as usize),
+                Instruction::SetIToCharInVx(reg) => self.i = self.config.memory.font_start + ((self.v[reg] & 0xF) * 5) as usize,
+                Instruction::StoreVxBCDAtI(reg) => {
+                    let mut value = self.v[reg];
                     for index in (0..3).rev() {
                         self.memory.write_byte(self.i + index, value % 10)
                             .unwrap_or_else(|error| {
@@ -410,8 +389,8 @@ impl ChipEight {
                         value /= 10;
                     }
                 },
-                FX55 => {
-                    for index in 0..=X {
+                Instruction::VDump(reg) => {
+                    for index in 0..=reg {
                         self.memory.write_byte(self.i + index, self.v[index])
                             .unwrap_or_else(|error| {
                                 panic!("Failed to store value in register to memory: {}", error);
@@ -419,11 +398,11 @@ impl ChipEight {
                     }
 
                     if !self.config.quirks.preserve_index {
-                        self.i += X + 1;
+                        self.i += reg + 1;
                     }
                 },
-                FX65 => {
-                    for index in 0..=X {
+                Instruction::VLoad(reg) => {
+                    for index in 0..=reg {
                         let byte = self.memory.read_byte(self.i + index)
                             .unwrap_or_else(|error| {
                                 panic!("Failed to load value from memory to register: {}", error);
@@ -432,10 +411,10 @@ impl ChipEight {
                     }
 
                     if !self.config.quirks.preserve_index {
-                        self.i += X + 1;
+                        self.i += reg + 1;
                     }
                 },
-            });
+            }
 
             // Sleep to ensure roughly correct clock speed
             thread::sleep(Duration::from_millis(1000 / self.config.clock_speed));
