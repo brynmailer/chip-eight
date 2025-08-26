@@ -5,14 +5,18 @@ My attempt at a Chip-8 emulator, in rust.
 CHIP-8 is a simple, interpreted programming language that was developed in the mid-1970s by Joseph Weisbecker to make video game programming more accessible on microcomputers of that era. It's not actually a physical chip but rather a virtual machine designed to run games and simple graphics applications with minimal hardware requirements. More information [here](https://en.wikipedia.org/wiki/CHIP-8).
 
 Features include:
-- Full support for all instructions and quirks from the original Chip-8. As well as the modern Super-Chip, and XO-Chip extensions.
+- Full support for all instructions and quirks from the original Chip-8.
 - Extensive configuration interface allowing fine-grained control over most aspects of the emulator. See usage section for more details.
 - An abstraction layer that sits between the peripheral devices and the core emulator logic. Streamlining the implementation and configuration of alternate engines for the handling of keyboard input, and audio/display output.
 - Ready to go SDL3 implementations of input/audio/display peripherals.
 
 
 
-_Screenshots coming soon_
+## Screenshots
+
+![Pong](images/pong.png)
+![Tetris](images/tetris.png)
+![Quirks Test](images/quirks.png)
 
 
 
@@ -54,4 +58,4 @@ _Pass the `--help` flag for the full list of options._
 
 ## Retrospective
 
-_Coming soon_
+Wow... It took me a LOT longer to get around to writing than I anticipated! The original goal here was to get my hands dirty with Rust and, as a result, I didn't think to hard about the boundaries of the project. And instead remained mostly focused on the language itself. This resulted in the inevitable self-imposed scope creep that seems to plague all my self-guided projects that don't have a hard deadline. Somewhere along the way between achieving feature parity with the original Chip 8 computer, and extending the emulator to support the newer extensions, I got distracted by the behemoth of a concept that is Rust's procedural macro system. At the time, I thought it would be cool to write a macro that simplifies the process of implementing support for new instructions. Had the plan come to fruition, such a macro would have been super useful when implementing support for the extensions (both of which add new instructions). Alas, I just can't seem to generate the motivation to execute on this plan. It seems a little silly in hindsight, how hard I got nerd sniped by proc macros and the extreme level of scope creep it led to in what should have been no more that a weekend task. Let this be a lesson on clearly defining project specs I guess ¯\_(ツ)_/¯
